@@ -1,6 +1,6 @@
 from ultrank_tiering import Tournament, TournamentTieringResult
 from startgg_toolkit import startgg_slug_regex
-from sheets_io import write_unsorted_events, write_valid_events
+from sheets_io import write_unsorted_events, write_ranked_events
 from datetime import datetime
 import csv
 import os 
@@ -39,7 +39,7 @@ def bulk_score(slugs):
     return results
 
 
-def write_results(results, valid_slugs, invalid_slugs):
+def write_results(results, ranked_slugs, unranked_slugs):
 
     ranked_results = []
     unsorted_results = []
@@ -51,7 +51,7 @@ def write_results(results, valid_slugs, invalid_slugs):
                                 str(result.is_invitational), result.score, result.max_potential_score(), result.entrants,
                                 str(result.should_count())]
 
-            if result.slug in valid_slugs:
+            if result.slug in ranked_slugs:
                 ranked_results.append(formatted_result)
             else:
                 unsorted_results.append(formatted_result)
@@ -59,8 +59,8 @@ def write_results(results, valid_slugs, invalid_slugs):
             print("Error: Not a valid TournamentTieringResult -- ", result)
             continue
 
-    write_unsorted_events(unsorted_results, valid_slugs, invalid_slugs)
-    write_valid_events(ranked_results, invalid_slugs)
+    write_unsorted_events(unsorted_results, ranked_slugs, unranked_slugs)
+    write_ranked_events(ranked_results, unranked_slugs)
 
 if __name__ == '__main__':
     # Get file

@@ -413,18 +413,18 @@ def retrieve_events_updated_at(start_time, end_time):
     return updated
 
 
-def filter_valid_slugs(valid_slugs, invalid_slugs, updated_at_tts, updated_at_startgg):
+def filter_ranked_slugs(ranked_slugs, unranked_slugs, updated_at_tts, updated_at_startgg):
     slugs = []
     for slug in updated_at_startgg:
-        if slug in invalid_slugs:
+        if slug in unranked_slugs:
             continue
         elif slug not in updated_at_tts:
             slugs.append(slug)
         elif updated_at_tts[slug][2] == "u":
             slugs.append(slug)
-        elif slug in valid_slugs and updated_at_tts[slug][2] != "v":
+        elif slug in ranked_slugs and updated_at_tts[slug][2] != "v":
             slugs.append(slug)
-        elif slug not in valid_slugs and updated_at_tts[slug][2] == "v":
+        elif slug not in ranked_slugs and updated_at_tts[slug][2] == "v":
             slugs.append(slug)
         elif datetime.fromisoformat(updated_at_tts[slug][0]).timestamp() < updated_at_startgg[slug][0]:
             print("Need to update based on time!", slug)
@@ -447,14 +447,14 @@ if __name__ == '__main__':
     print('using start timestamp {} and end timestamp {}'.format(
         str(start_timestamp), str(end_timestamp)))
 
-    valid_slugs, invalid_slugs = fetch_slug_classifications()
+    ranked_slugs, unranked_slugs = fetch_slug_classifications()
 
     slugs_updated_at = fetch_slugs_updated_at()
     startgg_updated_at = retrieve_events_updated_at(start_timestamp, end_timestamp)
 
-    events_needing_updates = filter_valid_slugs(valid_slugs, invalid_slugs, slugs_updated_at, startgg_updated_at)
+    events_needing_updates = filter_ranked_slugs(ranked_slugs, unranked_slugs, slugs_updated_at, startgg_updated_at)
 
     results = bulk_score([{'slug': slug, 'invit': False} for slug in events_needing_updates])
 
-    write_results(results, valid_slugs, invalid_slugs)
-    write_slugs_updated_at(valid_slugs, invalid_slugs, events_needing_updates, startgg_updated_at)
+    write_results(results, ranked_slugs, unranked_slugs)
+    write_slugs_updated_at(ranked_slugs, unranked_slugs, events_needing_updates, startgg_updated_at)

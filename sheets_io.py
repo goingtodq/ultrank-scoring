@@ -20,21 +20,21 @@ def fetch_slug_classifications():
     authorize()
 
     tts_main_sheet = client.open_by_url(TTS_SHEET)
-    valid_slugs_sheet = tts_main_sheet.worksheet("valid-event-slugs")
-    invalid_slugs_sheet = tts_main_sheet.worksheet("invalid-event-slugs")
+    ranked_slugs_sheet = tts_main_sheet.worksheet("ranked-event-slugs")
+    unranked_slugs_sheet = tts_main_sheet.worksheet("unranked-event-slugs")
 
-    valid_slugs = valid_slugs_sheet.get("A2:A")
-    invalid_slugs = invalid_slugs_sheet.get("A2:A")
+    ranked_slugs = ranked_slugs_sheet.get("A2:A")
+    unranked_slugs = unranked_slugs_sheet.get("A2:A")
 
     def flatten(xss):
         return [x for xs in xss for x in xs]
 
-    valid_slugs = flatten(valid_slugs)
-    invalid_slugs = flatten(invalid_slugs)
+    ranked_slugs = flatten(ranked_slugs)
+    unranked_slugs = flatten(unranked_slugs)
 
-    return valid_slugs, invalid_slugs
+    return ranked_slugs, unranked_slugs
 
-def write_unsorted_events(data, valid_slugs, invalid_slugs):
+def write_unsorted_events(data, ranked_slugs, unranked_slugs):
     authorize()
 
     tts_main_sheet = client.open_by_url(TTS_SHEET)
@@ -59,7 +59,7 @@ def write_unsorted_events(data, valid_slugs, invalid_slugs):
 
     formatted_events = []
     for slug, event in events_dict.items():
-        if slug in valid_slugs or slug in invalid_slugs:
+        if slug in ranked_slugs or slug in unranked_slugs:
             continue
 
         formatted_events.append(event[0:4] + [slug] + event[4:])
@@ -70,11 +70,11 @@ def write_unsorted_events(data, valid_slugs, invalid_slugs):
     tts_tiered_events_sheet.update("A1", header)
     tts_tiered_events_sheet.update("A2", formatted_events, value_input_option='USER_ENTERED')
 
-def write_valid_events(data, invalid_slugs):
+def write_ranked_events(data, unranked_slugs):
     authorize()
 
     tts_main_sheet = client.open_by_url(TTS_SHEET)
-    tts_tiered_events_sheet = tts_main_sheet.worksheet("tiered-valid-events")
+    tts_tiered_events_sheet = tts_main_sheet.worksheet("tiered-ranked-events")
 
     header = tts_tiered_events_sheet.get("A1:J1")
     events = tts_tiered_events_sheet.get("A2:J")
@@ -95,7 +95,7 @@ def write_valid_events(data, invalid_slugs):
 
     formatted_events = []
     for slug, event in events_dict.items():
-        if slug in invalid_slugs:
+        if slug in unranked_slugs:
             continue
 
         formatted_events.append(event[0:4] + [slug] + event[4:])
@@ -122,7 +122,7 @@ def fetch_slugs_updated_at():
 
     return formatted_slugs
 
-def write_slugs_updated_at(valid_slugs, invalid_slugs, updated_slugs, timestamps):
+def write_slugs_updated_at(ranked_slugs, unranked_slugs, updated_slugs, timestamps):
     authorize()
 
     tts_main_sheet = client.open_by_url(TTS_SHEET)
@@ -142,7 +142,7 @@ def write_slugs_updated_at(valid_slugs, invalid_slugs, updated_slugs, timestamps
 
     formatted_slugs = []
     for slug, dates in slugs_dict.items():
-        status = "v" if slug in valid_slugs else ("u" if slug in invalid_slugs else "q")
+        status = "v" if slug in ranked_slugs else ("u" if slug in unranked_slugs else "q")
         formatted_slugs.append([slug, dates[0], dates[1], dates[2], status])
 
     slugs_updated_at.update("A2", formatted_slugs)
