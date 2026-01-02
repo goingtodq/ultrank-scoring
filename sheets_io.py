@@ -34,6 +34,25 @@ def fetch_slug_classifications():
 
     return ranked_slugs, unranked_slugs
 
+def parse_events_helper(tts_events, updated_events):
+    events_dict = dict()
+
+    for event in tts_events:
+        # weird edge case with empty sheet
+        if len(event) == 0:
+            continue
+
+        events_dict[event[4]] = event[0:4] + event[5:]
+    
+    for event in updated_events:
+        events_dict[event[4]] = event[0:4] + event[5:]
+
+    return events_dict
+
+def event_link(name, slug):
+    return '=HYPERLINK(\"https://start.gg/' + slug + "\",\"" + name + '\")'
+
+
 def write_unsorted_events(data, ranked_slugs, unranked_slugs):
     authorize()
 
@@ -45,17 +64,7 @@ def write_unsorted_events(data, ranked_slugs, unranked_slugs):
 
     tts_tiered_events_sheet.clear()
 
-    events_dict = dict()
-
-    for event in events:
-        # weird edge case with empty sheet
-        if len(event) == 0:
-            continue
-
-        events_dict[event[4]] = event[0:4] + event[5:]
-    
-    for event in data:
-        events_dict[event[4]] = event[0:4] + event[5:]
+    events_dict = parse_events_helper(events, data)
 
     formatted_events = []
     for slug, event in events_dict.items():
@@ -63,7 +72,7 @@ def write_unsorted_events(data, ranked_slugs, unranked_slugs):
             continue
 
         formatted_events.append(event[0:4] + [slug] + event[4:])
-        formatted_events[-1][1] = '=HYPERLINK(\"https://start.gg/' + slug + "\",\"" + formatted_events[-1][1] + '\")'
+        formatted_events[-1][1] = event_link(formatted_events[-1][1], slug)
 
     formatted_events.sort(key=lambda x: -int(x[6]))
 
@@ -81,17 +90,7 @@ def write_ranked_events(data, unranked_slugs):
 
     tts_tiered_events_sheet.clear()
 
-    events_dict = dict()
-
-    for event in events:
-        # weird edge case with empty sheet
-        if len(event) == 0:
-            continue
-
-        events_dict[event[4]] = event[0:4] + event[5:]
-    
-    for event in data:
-        events_dict[event[4]] = event[0:4] + event[5:]
+    events_dict = parse_events_helper(events, data)
 
     formatted_events = []
     for slug, event in events_dict.items():
@@ -99,7 +98,7 @@ def write_ranked_events(data, unranked_slugs):
             continue
 
         formatted_events.append(event[0:4] + [slug] + event[4:])
-        formatted_events[-1][1] = '=HYPERLINK(\"https://start.gg/' + slug + "\",\"" + formatted_events[-1][1] + '\")'
+        formatted_events[-1][1] = event_link(formatted_events[-1][1], slug)
 
     formatted_events.sort(key=lambda x: (x[0], -int(x[6])))
 
