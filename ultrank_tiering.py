@@ -16,6 +16,7 @@ import re
 import sys
 import json
 import datetime
+import time
 
 NUM_PLAYERS_FLOOR = 2
 
@@ -152,7 +153,7 @@ class PlayerValueGroup:
 
 
 class TournamentTieringResult:
-    def __init__(self, slug, score, entrants, region, values, dqs, potential, date, is_invitational=False, phases=[], dq_count=-1):
+    def __init__(self, slug, score, entrants, region, values, dqs, potential, date, eventName, tournamentName, is_invitational=False, phases=[], dq_count=-1):
         self.slug = slug
         self.score = score
         self.values = values
@@ -161,14 +162,14 @@ class TournamentTieringResult:
         self.date = date
         self.entrants = entrants
         self.region = region
+        self.event = eventName
+        self.tournament = tournamentName
+
         self.is_invitational = is_invitational
         self.dq_count = dq_count
         self.phases = phases
         self.max_score = None
 
-        name = get_name(slug)
-        self.tournament = name['tournament']
-        self.event = name['event']
 
     def using_new_tiering_system(self):
         return self.date > NEW_MULT_SYSTEM_DATE
@@ -440,21 +441,29 @@ class Tournament:
         self.is_invitational = is_invitational
         self.tier = None
 
-        self.gather_entrant_counts()
-        if location:
-            self.gather_location_info()
-        else:
-            self.address = {'country_code': 'aq'}
+        self.gather_general_data()
+        self.gather_location_info()
         self.retrieve_start_time()
+        self.gather_entrant_counts()
+
+    def gather_general_data(self):
+        query, variables = general_query(self.event_slug)
+        resp = send_request(query, variables)
+
+        self.general_data = resp['data']
+
 
     def gather_entrant_counts(self):
         # Check if the event has progressed enough to detect DQs.
         self.total_dqs = -1  # Placeholder value
 
-        event_progressed = check_phase_completed(self.event_slug)
+        event_progressed = False
+        if self.general_data['event']['phases'] is not None:
+            event_progressed = check_phase_completed(self.event_slug, self.general_data['event']['phases'])
+
 
         if event_progressed:
-            self.phases = collect_phases(self.event_slug)
+            self.phases = collect_phases(self.event_slug, self.general_data['event']['phases'])
 
             self.dq_list, self.participants = get_dqs(
                 self.event_slug, phase_ids=[phase['id'] for phase in self.phases])
@@ -470,7 +479,7 @@ class Tournament:
             self.total_entrants = len(self.participants) + self.total_dqs
 
         else:
-            self.participants = get_entrants(self.event_slug)
+            self.participants = get_entrants(self.event_slug, self.general_data['event']['entrants'])
             self.dq_list = {}
             self.total_dqs = -1
             self.total_entrants = len(self.participants)
@@ -482,15 +491,12 @@ class Tournament:
     def gather_location_info(self):
         geo = Nominatim(user_agent='ultrank', timeout=10)
 
-        query, variables = location_query(self.event_slug)
-        resp = send_request(query, variables)
-
         try:
-            self.lat = resp['data']['event']['tournament']['lat']
-            self.lng = resp['data']['event']['tournament']['lng']
+            self.lat = self.general_data['event']['tournament']['lat']
+            self.lng = self.general_data['event']['tournament']['lng']
         except Exception as e:
             print(e)
-            print(resp)
+            print(self.general_data)
             raise e
 
         if self.lat < -80:
@@ -510,15 +516,12 @@ class Tournament:
         # print(self.address)
 
     def retrieve_start_time(self):
-        query, variables = time_query(self.event_slug)
-        resp = send_request(query, variables)
-
         try:
             self.start_time = datetime.date.fromtimestamp(
-                resp['data']['event']['startAt'])
+                self.general_data['event']['startAt'])
         except Exception as e:
             print(e)
-            print(resp)
+            print(self.general_data)
             raise e
 
     def calculate_tier(self):
@@ -612,13 +615,13 @@ class Tournament:
         potential_matches.sort(key=lambda m: (m.dqs, m.tag))
 
         self.tier = TournamentTieringResult(self.event_slug, total_score, self.total_entrants, best_region, valued_participants,
-                                            participants_with_dqs, potential_matches, self.start_time, is_invitational=self.is_invitational,
-                                            phases=[phase['name'] for phase in self.phases], dq_count=self.total_dqs)
+                                            participants_with_dqs, potential_matches, self.start_time, self.general_data['event']['name'], self.general_data['event']['tournament']['name'], 
+                                            is_invitational=self.is_invitational, phases=[phase['name'] for phase in self.phases], dq_count=self.total_dqs)
 
         return self.tier
 
 
-def entrants_query(event_slug, page_num=1, per_page=200):
+def entrants_query(event_slug, page_num=1, per_page=450):
     query = '''query getEntrants($eventSlug: String!, $pageNum: Int!, $perPage: Int!) {
         event(slug: $eventSlug) {
             entrants(
@@ -692,37 +695,41 @@ def sets_query(event_slug, page_num=1, per_page=50, phases=None):
     }}'''.format(event_slug, page_num, per_page, f'{phases if phases is not None else "[]"}')
     return query, variables
 
+def general_query(event_slug):
+    """Generates query to retrieve general tournament information: name, time, location, phases, entrants"""
 
-def phase_list_query(event_slug):
-    """Generates a query to retrieve a list of phases from an event."""
-
-    query = '''query getPhases($eventSlug: String!) {
+    query = '''query generalQuery($eventSlug: String!) {
   event(slug: $eventSlug) {
+    name
+    startAt
+    tournament {
+      name
+      lat
+      lng
+    }
     phases {
       id
       name
       state
       isExhibition
     }
-  }
-}'''
-    variables = '''{{
-        "eventSlug": "{}"
-    }}'''.format(event_slug)
-
-    return query, variables
-
-
-def location_query(event_slug):
-    """Generates a query to retrieve the location (latitude/longitude)
-    of an event.
-    """
-
-    query = '''query getLoc($eventSlug: String!) {
-  event(slug: $eventSlug) {
-    tournament {
-      lat
-      lng
+    entrants(
+        query: {
+            page: 1,
+            perPage: 200
+        }
+    ){
+        pageInfo {
+            totalPages
+        }
+        nodes {
+            participants {
+                player {
+                    gamerTag
+                    id
+                }
+            }
+        }
     }
   }
 }'''
@@ -731,41 +738,6 @@ def location_query(event_slug):
     }}'''.format(event_slug)
 
     return query, variables
-
-
-def time_query(event_slug):
-    """Generates a query to retrieve the start time of an event.
-    """
-
-    query = '''query getLoc($eventSlug: String!) {
-  event(slug: $eventSlug) {
-    startAt
-  }
-}'''
-    variables = '''{{
-        "eventSlug": "{}"
-    }}'''.format(event_slug)
-
-    return query, variables
-
-
-def name_query(event_slug):
-    """Generates a query to retrieve tournament and event name given a slug."""
-
-    query = '''query nameQuery($eventSlug: String!) {
-  event(slug: $eventSlug) {
-    name
-    tournament {
-      name
-    }
-  }
-}'''
-    variables = '''{{
-        "eventSlug": "{}"
-    }}'''.format(event_slug)
-
-    return query, variables
-
 
 def get_sets_in_phases(event_slug, phase_ids):
     """Collects all the sets in a group of phases."""
@@ -789,50 +761,49 @@ def get_sets_in_phases(event_slug, phase_ids):
         if page >= resp['data']['event']['sets']['pageInfo']['totalPages']:
             break
         page += 1
+        time.sleep(0.5) # attempt at avoiding rate limiting
 
     return sets
 
 
-def check_phase_completed(event_slug):
+def check_phase_completed(event_slug, phases):
     """Checks to see if any phases are completed."""
 
-    # Get ordered list of phases
-    query, variables = phase_list_query(event_slug)
-    resp = send_request(query, variables)
-
     try:
-        for phase in resp['data']['event']['phases']:
+        for phase in phases:
             if phase.get('state', '') == 'COMPLETED' and not phase.get('isExhibition', True):
                 return True
     except Exception as e:
         print(e)
-        print(resp)
+        print(phases)
         raise e
 
     return False
 
 
-def collect_phases(event_slug):
+def collect_phases(event_slug, phases):
     """Collects phases that are part of the main tournament.
     (Hopefully) excludes amateur brackets.
     """
 
-    # Get ordered list of phases
-    query, variables = phase_list_query(event_slug)
-    resp = send_request(query, variables)
-
-    return [phase for phase in resp['data']['event']['phases'] if not phase['isExhibition']]
+    return [phase for phase in phases if not phase['isExhibition']]
 
 
-def get_entrants(event_slug):
+def get_entrants(event_slug, base_entrants):
     page = 1
     participants = set()
 
     while True:
-        query, variables = entrants_query(event_slug, page_num=page)
-        resp = send_request(query, variables)
+        current = dict()
 
-        for entrant in resp['data']['event']['entrants']['nodes']:
+        if base_entrants['pageInfo']['totalPages'] > 1:
+            query, variables = entrants_query(event_slug, page_num=page)
+            resp = send_request(query, variables)
+            current = resp['data']['event']['entrants']
+        else:
+            current = base_entrants
+
+        for entrant in current['nodes']:
             try:
                 player_data = Entrant(
                     entrant['participants'][0]['player']['id'], entrant['participants'][0]['player']['gamerTag'])
@@ -844,7 +815,7 @@ def get_entrants(event_slug):
                 print(entrant)
                 # raise e
 
-        if page >= resp['data']['event']['entrants']['pageInfo']['totalPages']:
+        if page >= current['pageInfo']['totalPages']:
             break
         page += 1
 
@@ -902,13 +873,6 @@ def get_dqs(event_slug, phase_ids=None):
             print(e)
 
     return dq_list, participants
-
-
-def get_name(event_slug):
-    query, variables = name_query(event_slug)
-    resp = send_request(query, variables)
-
-    return {'event': resp['data']['event']['name'], 'tournament': resp['data']['event']['tournament']['name']}
 
 
 def read_players():

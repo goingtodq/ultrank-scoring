@@ -2,3 +2,5 @@ dateparser
 geopy
 levenshtein
 requests
+gspread
+google-auth

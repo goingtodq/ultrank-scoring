@@ -1,5 +1,7 @@
 from ultrank_tiering import Tournament, TournamentTieringResult
 from startgg_toolkit import startgg_slug_regex
+from sheets_io import write_unsorted_events, write_valid_events
+from datetime import datetime
 import csv
 import os 
 import re
@@ -7,12 +9,8 @@ import sys
 
 true_values = ['true', 't', '1']
 
-def bulk_score(slugs, directory='tts_values'):
+def bulk_score(slugs):
     """Scores multiple slugs, and returns the resultant result."""
-
-    # Create results directory
-    if not os.path.isdir(directory):
-        os.mkdir(directory)
 
     # Get values
     results = []
@@ -30,11 +28,6 @@ def bulk_score(slugs, directory='tts_values'):
 
                 results.append(result)
 
-                print('writing for slug {}'.format(result.slug))
-
-                with open(os.path.join(directory, '{}.txt'.format(re.sub(r'tournament\/([a-z0-9-_]*)\/event\/([a-z0-9-_]*)', r'\1_\2', result.slug))), mode='w') as write_file:
-                    result.write_result(write_file)
-
             except Exception as e:
                 print(e)
                 print('catastrophic failure')
@@ -46,41 +39,28 @@ def bulk_score(slugs, directory='tts_values'):
     return results
 
 
-def write_results(results, directory='tts_values'):
-    # Write CSV
+def write_results(results, valid_slugs, invalid_slugs):
 
-    print('writing summary file')
+    ranked_results = []
+    unsorted_results = []
 
-    if not os.path.isdir(directory):
-        os.mkdir(directory)
+    for result in results:
+        formatted_result = []
+        if isinstance(result, TournamentTieringResult):
+            formatted_result = [result.date.isoformat(), result.tournament, result.event, result.region.note, result.slug, 
+                                str(result.is_invitational), result.score, result.max_potential_score(), result.entrants,
+                                str(result.should_count())]
 
-    with open(os.path.join(directory, 'summary.csv'), newline='', mode='w') as summary_file:
-        writer = csv.DictWriter(summary_file, ['Tournament', 'Event', 'Slug', 'URL', 'Invitational?', 'Score', 'Max Potential Score', 'Num Entrants', 'Meets Reqs'])
-        writer.writeheader()
-
-        for result in results:
-            if isinstance(result, TournamentTieringResult):
-                writer.writerow({'Tournament': result.tournament,
-                                 'Event': result.event,
-                                 'Slug': result.slug,
-                                 'URL': 'https://start.gg/' + result.slug,
-                                 'Invitational?': str(result.is_invitational),
-                                 'Score': result.score,
-                                 'Max Potential Score': result.max_potential_score(),
-                                 'Num Entrants': result.entrants, 
-                                 'Meets Reqs': str(result.should_count())})
+            if result.slug in valid_slugs:
+                ranked_results.append(formatted_result)
             else:
-                writer.writerow({'Tournament': '',
-                                 'Event': '',
-                                 'Slug': str(result),
-                                 'URL': '',
-                                 'Invitational?': '',
-                                 'Score': '',
-                                 'Max Potential Score': '',
-                                 'Num Entrants': ''})
+                unsorted_results.append(formatted_result)
+        else:
+            print("Error: Not a valid TournamentTieringResult -- ", result)
+            continue
 
-    print('done writing')
-
+    write_unsorted_events(unsorted_results, valid_slugs, invalid_slugs)
+    write_valid_events(ranked_results, invalid_slugs)
 
 if __name__ == '__main__':
     # Get file
