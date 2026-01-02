@@ -59,8 +59,8 @@ def write_unsorted_events(data, ranked_slugs, unranked_slugs):
     tts_main_sheet = client.open_by_url(TTS_SHEET)
     tts_tiered_events_sheet = tts_main_sheet.worksheet("tiered-unsorted-events")
 
-    header = tts_tiered_events_sheet.get("A1:J1")
-    events = tts_tiered_events_sheet.get("A2:J")
+    header = tts_tiered_events_sheet.get("A1:L1")
+    events = tts_tiered_events_sheet.get("A2:L")
 
     tts_tiered_events_sheet.clear()
 
@@ -85,8 +85,8 @@ def write_ranked_events(data, unranked_slugs):
     tts_main_sheet = client.open_by_url(TTS_SHEET)
     tts_tiered_events_sheet = tts_main_sheet.worksheet("tiered-ranked-events")
 
-    header = tts_tiered_events_sheet.get("A1:J1")
-    events = tts_tiered_events_sheet.get("A2:J")
+    header = tts_tiered_events_sheet.get("A1:L1")
+    events = tts_tiered_events_sheet.get("A2:L")
 
     tts_tiered_events_sheet.clear()
 

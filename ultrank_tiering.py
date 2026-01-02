@@ -153,7 +153,8 @@ class PlayerValueGroup:
 
 
 class TournamentTieringResult:
-    def __init__(self, slug, score, entrants, region, values, dqs, potential, date, eventName, tournamentName, is_invitational=False, phases=[], dq_count=-1):
+    def __init__(self, slug, score, entrants, region, values, dqs, potential, date, eventName, 
+                 tournamentName, tournamentSlug, ownerDiscriminator, is_invitational=False, phases=[], dq_count=-1):
         self.slug = slug
         self.score = score
         self.values = values
@@ -163,7 +164,12 @@ class TournamentTieringResult:
         self.entrants = entrants
         self.region = region
         self.event = eventName
+
         self.tournament = tournamentName
+
+        self.tournamentSlug = tournamentSlug
+
+        self.ownerDiscriminator = ownerDiscriminator
 
         self.is_invitational = is_invitational
         self.dq_count = dq_count
@@ -615,7 +621,8 @@ class Tournament:
         potential_matches.sort(key=lambda m: (m.dqs, m.tag))
 
         self.tier = TournamentTieringResult(self.event_slug, total_score, self.total_entrants, best_region, valued_participants,
-                                            participants_with_dqs, potential_matches, self.start_time, self.general_data['event']['name'], self.general_data['event']['tournament']['name'], 
+                                            participants_with_dqs, potential_matches, self.start_time, self.general_data['event']['name'], self.general_data['event']['tournament']['name'],
+                                            self.general_data['event']['tournament']['slug'], self.general_data['event']['tournament']['owner']['discriminator'],
                                             is_invitational=self.is_invitational, phases=[phase['name'] for phase in self.phases], dq_count=self.total_dqs)
 
         return self.tier
@@ -704,8 +711,12 @@ def general_query(event_slug):
     startAt
     tournament {
       name
+      slug
       lat
       lng
+      owner {
+        discriminator
+      }
     }
     phases {
       id
