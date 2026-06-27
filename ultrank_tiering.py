@@ -10,6 +10,7 @@ Requirements:
 """
 
 from startgg_toolkit import send_request, isolate_slug
+from sheets_io import fetch_cached_addresses
 from geopy.geocoders import Nominatim
 import csv
 import re
@@ -34,6 +35,34 @@ ENTRANT_FLOOR = {
 
 NEW_MULT_SYSTEM_DATE = datetime.date.fromisoformat('2024-12-16')
 
+class Addresses:
+    _instance = None
+    _initialized = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def __init__(self):
+        if self._initialized:
+            return
+        self._initialized = True
+
+        self.addresses = fetch_cached_addresses()
+
+    def lookup_cached_region(self, tournament):
+        location = str(tournament.lat) + str(tournament.lng)
+
+        if location in self.addresses:
+            return self.addresses[location]
+        else:
+            return None
+    
+    def save_cached_region(self, tournament):
+        location = str(tournament.lat) + str(tournament.lng)
+
+        self.addresses[location] = tournament.address
 
 class PotentialMatchWithDqs:
     def __init__(self, tag, id_, points, note, actual_tag='', dqs=0):
@@ -164,13 +193,9 @@ class TournamentTieringResult:
         self.entrants = entrants
         self.region = region
         self.event = eventName
-
         self.tournament = tournamentName
-
         self.tournamentSlug = tournamentSlug
-
         self.ownerDiscriminator = ownerDiscriminator
-
         self.is_invitational = is_invitational
         self.dq_count = dq_count
         self.phases = phases
@@ -495,7 +520,7 @@ class Tournament:
         self.total_dqs = -1
 
     def gather_location_info(self):
-        geo = Nominatim(user_agent='ultrank', timeout=10)
+        geo = Nominatim(user_agent='https://github.com/goingtodq/ultrank-scoring (iamgoingtodq11@gmail.com)', timeout=10)
 
         try:
             self.lat = self.general_data['event']['tournament']['lat']
@@ -504,6 +529,12 @@ class Tournament:
             print(e)
             print(self.general_data)
             raise e
+        
+        # Do caching to avoid overwhelming nominatim.
+        cached = Addresses().lookup_cached_region(self)
+        if cached is not None:
+            self.address = cached
+            return
 
         if self.lat < -80:
             self.address = {'country_code': 'aq'}
@@ -512,19 +543,25 @@ class Tournament:
         # Try 10 times
         for i in range(5):
             try:
+                time.sleep(5)
+                print("Nominatim Request")
                 self.address = geo.reverse('{}, {}'.format(
                     self.lat, self.lng)).raw['address']
+                Addresses().save_cached_region(self)
                 break
-            except Exception:
-                print(f'Nominatim error {i}')
+            except Exception as e:
+                print(f'Nominatim error {i}, exception {e}')
+                time.sleep(10)
                 pass
 
         # print(self.address)
 
     def retrieve_start_time(self):
         try:
+            # We use the tournamne startAt instead of the event startAt.
+            # This seems to be more consistently filled out correctly by TOs.
             self.start_time = datetime.date.fromtimestamp(
-                self.general_data['event']['startAt'])
+                self.general_data['event']['tournament']['startAt'])
         except Exception as e:
             print(e)
             print(self.general_data)
@@ -628,7 +665,7 @@ class Tournament:
         return self.tier
 
 
-def entrants_query(event_slug, page_num=1, per_page=450):
+def entrants_query(event_slug, page_num=1, per_page=490):
     query = '''query getEntrants($eventSlug: String!, $pageNum: Int!, $perPage: Int!) {
         event(slug: $eventSlug) {
             entrants(
@@ -708,9 +745,9 @@ def general_query(event_slug):
     query = '''query generalQuery($eventSlug: String!) {
   event(slug: $eventSlug) {
     name
-    startAt
     tournament {
       name
+      startAt
       slug
       lat
       lng
@@ -772,8 +809,6 @@ def get_sets_in_phases(event_slug, phase_ids):
         if page >= resp['data']['event']['sets']['pageInfo']['totalPages']:
             break
         page += 1
-        time.sleep(0.5) # attempt at avoiding rate limiting
-
     return sets
 
 
@@ -799,7 +834,7 @@ def collect_phases(event_slug, phases):
 
     return [phase for phase in phases if not phase['isExhibition']]
 
-
+# TODO: review
 def get_entrants(event_slug, base_entrants):
     page = 1
     participants = set()

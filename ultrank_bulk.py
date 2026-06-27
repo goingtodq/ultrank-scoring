@@ -1,6 +1,6 @@
 from ultrank_tiering import Tournament, TournamentTieringResult
 from startgg_toolkit import startgg_slug_regex
-from sheets_io import write_unsorted_events, write_ranked_events
+from sheets_io import write_events
 from datetime import datetime
 from Levenshtein import jaro_winkler
 from startgg_toolkit import send_request
@@ -249,30 +249,23 @@ def bulk_score(slugs):
     return results
 
 
-def write_results(results, ranked_slugs, unranked_slugs):
-
-    ranked_results = []
-    unsorted_results = []
+def write_results(results):
+    formatted_results = []
 
     for result in results:
         formatted_result = []
         if isinstance(result, TournamentTieringResult):
-            formatted_result = [result.date.isoformat(), result.tournament, result.event, result.region.note, result.slug, 
-                                str(result.is_invitational), result.score, result.max_potential_score(), result.entrants,
-                                str(result.should_count())]
+            formatted_result = [result.date.isoformat(), result.tournament, "", "", "", result.event, result.region.note, result.slug, 
+                                str(result.is_invitational), result.score, result.max_potential_score(), "", result.entrants,
+                                str(result.should_count()), ""]
 
             formatted_result += validate_event(result)
-
-            if result.slug in ranked_slugs:
-                ranked_results.append(formatted_result)
-            else:
-                unsorted_results.append(formatted_result)
+            formatted_results.append(formatted_result)
         else:
             print("Error: Not a valid TournamentTieringResult -- ", result)
             continue
 
-    write_unsorted_events(unsorted_results, ranked_slugs, unranked_slugs)
-    write_ranked_events(ranked_results, unranked_slugs)
+    write_events(formatted_results)
 
 if __name__ == '__main__':
     # Get file

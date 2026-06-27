@@ -20,6 +20,7 @@ class InvalidEventUrlException(Exception):
     pass
 
 def send_request(query, variables, quiet=False):
+    time.sleep(0.75) # Try to avoid rate limiting issues.
     print("Send Request")
     # Sends a request to the startgg server.
     progress = False

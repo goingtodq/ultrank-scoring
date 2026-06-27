@@ -4,9 +4,23 @@ import gspread
 from datetime import datetime
 from google.oauth2.service_account import Credentials
 import requests
+import re
 
 client = None
 TTS_SHEET = "https://docs.google.com/spreadsheets/d/1hz6wuj-BowOsyzRIowoAWRyVEJk7tHHFUNhJiJSgT48"
+
+NOMINATIM_SHEET = "nominatim-cache"
+EVENTS_SHEET = "all-events"
+
+DATE_INDEX = 0
+TOURNAMENT_INDEX = 1
+CLASSIFICATION_INDEX = 2
+OVERRIDE_DATE_INDEX = 3
+NICKNAME_INDEX = 4
+SLUG_INDEX = 7
+POTENTIAL_SCORE_INDEX = 10
+OVERRIDE_SCORE_INDEX = 11
+NOTE_INDEX = 16
 
 def authorize():
     global client
@@ -16,124 +30,154 @@ def authorize():
                                                       scopes=["https://www.googleapis.com/auth/spreadsheets"])
         client = gspread.authorize(CREDS)
 
+
+def fetch_cached_addresses():
+    authorize()
+    main_sheet = client.open_by_url(TTS_SHEET)
+    addresses_sheet = main_sheet.worksheet(NOMINATIM_SHEET)
+
+    cached_addresses = addresses_sheet.get("A2:B")
+    addresses = dict()
+    for row in cached_addresses:
+        if (len(row) > 1):
+            addresses[row[0]] = json.loads(row[1])
+    return addresses
+
+def write_cached_addresses(addresses):
+    authorize()
+    main_sheet = client.open_by_url(TTS_SHEET)
+    addresses_sheet = main_sheet.worksheet(NOMINATIM_SHEET)
+
+    addresses_list = []
+
+    for ll, address in addresses.items():
+        addresses_list.append([ll, json.dumps(address)])
+
+    addresses_sheet.update("A2", addresses_list)
+
 def fetch_slug_classifications():
     authorize()
+    main_sheet = client.open_by_url(TTS_SHEET)
+    events_sheet = main_sheet.worksheet(EVENTS_SHEET)
 
-    tts_main_sheet = client.open_by_url(TTS_SHEET)
-    ranked_slugs_sheet = tts_main_sheet.worksheet("ranked-event-slugs")
-    unranked_slugs_sheet = tts_main_sheet.worksheet("unranked-event-slugs")
+    slugs = events_sheet.get("G2:G")
+    classifications = events_sheet.get("C2:C")
 
-    ranked_slugs = ranked_slugs_sheet.get("A2:A")
-    unranked_slugs = unranked_slugs_sheet.get("A2:A")
+    event_classifications = dict()
 
-    def flatten(xss):
-        return [x for xs in xss for x in xs]
+    for i in range(len(slugs)):
+        slug = slugs[i]
+        classification = classifications[i]
+        if slug == "" or classification == "":
+            continue
+        else:
+            event_classifications[slug] = classification
 
-    ranked_slugs = flatten(ranked_slugs)
-    unranked_slugs = flatten(unranked_slugs)
+    return event_classifications
 
-    return ranked_slugs, unranked_slugs
-
-def parse_events_helper(tts_events, updated_events):
+def create_events_dict(tts_events, updated_events):
+    """
+    Creates an events dict with both old and new event data.
+    """
     events_dict = dict()
 
     for event in tts_events:
-        # weird edge case with empty sheet
         if len(event) == 0:
             continue
 
-        events_dict[event[4]] = event[0:4] + event[5:]
+        events_dict[event[SLUG_INDEX]] = event[0:SLUG_INDEX] + event[SLUG_INDEX + 1:]
     
+
     for event in updated_events:
-        events_dict[event[4]] = event[0:4] + event[5:]
+        if event[SLUG_INDEX] in events_dict:
+            current_event = events_dict[event[SLUG_INDEX]]
+
+            print(current_event)
+            print(event)
+
+            # Override purple fields (ex: nickname)
+            for index, field in enumerate(current_event):
+                if index in [CLASSIFICATION_INDEX, OVERRIDE_DATE_INDEX, NICKNAME_INDEX, OVERRIDE_SCORE_INDEX - 1, NOTE_INDEX - 1]:
+                    event[index + 1 if index >= SLUG_INDEX else index] = field
+
+            print(event)
+
+
+        events_dict[event[SLUG_INDEX]] = event[0:SLUG_INDEX] + event[SLUG_INDEX + 1:]
 
     return events_dict
 
-def event_link(name, slug):
-    return '=HYPERLINK(\"https://start.gg/' + slug + "\",\"" + name + '\")'
+def sanitize(string: str):
+    return re.sub(r'(?<!")"(?!")', '""', string)
 
+def format_event_link(name, slug):
+    """
+    Creates a hyperlink out of an event slug and name.
+    """
+    return '=HYPERLINK(\"https://start.gg/' + slug + "\",\"" + sanitize(name) + '\")'
 
-def write_unsorted_events(data, ranked_slugs, unranked_slugs):
+def format_classification(classification):
+    classification = classification.upper()
+    if classification == "R" or classification == "RANKED":
+        classification = "RANKED"
+    return classification
+
+def write_events(data):
+    """
+    Writes all events to the main sheet.
+    """
     authorize()
 
-    tts_main_sheet = client.open_by_url(TTS_SHEET)
-    tts_tiered_events_sheet = tts_main_sheet.worksheet("tiered-unsorted-events")
+    main_sheet = client.open_by_url(TTS_SHEET)
+    events_sheet = main_sheet.worksheet(EVENTS_SHEET)
 
-    header = tts_tiered_events_sheet.get("A1:L1")
-    events = tts_tiered_events_sheet.get("A2:L")
-
-    tts_tiered_events_sheet.clear()
-
-    events_dict = parse_events_helper(events, data)
+    events = events_sheet.get("A3:P")
+    events_dict = create_events_dict(events, data)
 
     formatted_events = []
     for slug, event in events_dict.items():
-        if slug in ranked_slugs or slug in unranked_slugs:
-            continue
+        formatted_events.append(event[0:SLUG_INDEX] + [slug] + event[SLUG_INDEX:])
+        formatted_events[-1][TOURNAMENT_INDEX] = format_event_link(formatted_events[-1][TOURNAMENT_INDEX], slug)
+        formatted_events[-1][CLASSIFICATION_INDEX] = format_classification(formatted_events[-1][CLASSIFICATION_INDEX])
 
-        formatted_events.append(event[0:4] + [slug] + event[4:])
-        formatted_events[-1][1] = event_link(formatted_events[-1][1], slug)
+    formatted_events.sort(key=lambda x: int(x[POTENTIAL_SCORE_INDEX]), reverse=True)
+    formatted_events.sort(key=lambda x: x[DATE_INDEX], reverse=True)
 
-    formatted_events.sort(key=lambda x: -int(x[6]))
+    events_sheet.update("A3", formatted_events, value_input_option='USER_ENTERED')
 
-    tts_tiered_events_sheet.update("A1", header)
-    tts_tiered_events_sheet.update("A2", formatted_events, value_input_option='USER_ENTERED')
-
-def write_ranked_events(data, unranked_slugs):
+def fetch_updated_at():
+    """
+    Fetches from the updated_at sheet
+    """
     authorize()
-
-    tts_main_sheet = client.open_by_url(TTS_SHEET)
-    tts_tiered_events_sheet = tts_main_sheet.worksheet("tiered-ranked-events")
-
-    header = tts_tiered_events_sheet.get("A1:L1")
-    events = tts_tiered_events_sheet.get("A2:L")
-
-    tts_tiered_events_sheet.clear()
-
-    events_dict = parse_events_helper(events, data)
-
-    formatted_events = []
-    for slug, event in events_dict.items():
-        if slug in unranked_slugs:
-            continue
-
-        formatted_events.append(event[0:4] + [slug] + event[4:])
-        formatted_events[-1][1] = event_link(formatted_events[-1][1], slug)
-
-    formatted_events.sort(key=lambda x: (x[0], -int(x[6])))
-
-    tts_tiered_events_sheet.update("A1", header)
-    tts_tiered_events_sheet.update("A2", formatted_events, value_input_option='USER_ENTERED')
-
-def fetch_slugs_updated_at():
-    authorize()
-
-    tts_main_sheet = client.open_by_url(TTS_SHEET)
-    slugs_updated_at = tts_main_sheet.worksheet("slugs-updated-at")
-
-    slugs = slugs_updated_at.get("A2:E")
+    main_sheet = client.open_by_url(TTS_SHEET)
+    updated_at_sheet = main_sheet.worksheet("slugs-updated-at")
+    slugs = updated_at_sheet.get("A2:D")
 
     formatted_slugs = dict()
     for slug in slugs:
-        if len(slug) < 5:
+        if len(slug) < 4:
             continue
-        formatted_slugs[slug[0]] = [slug[1], slug[3], slug[4]]
+        formatted_slugs[slug[0]] = [slug[1], slug[3]]
 
     return formatted_slugs
 
-def write_slugs_updated_at(ranked_slugs, unranked_slugs, updated_slugs, timestamps):
+def write_updated_at(updated_slugs, timestamps):
+    """
+    Writes to the update_at sheet.
+    """
     authorize()
 
-    tts_main_sheet = client.open_by_url(TTS_SHEET)
-    slugs_updated_at = tts_main_sheet.worksheet("slugs-updated-at")
+    main_sheet = client.open_by_url(TTS_SHEET)
+    slugs_updated_at = main_sheet.worksheet("slugs-updated-at")
 
-    slugs = slugs_updated_at.get("A2:E")
+    slugs = slugs_updated_at.get("A2:D")
     
     slugs_dict = dict()
     for slug in slugs:
         if len(slug) < 4:
             continue
-        slugs_dict[slug[0]] = [slug[1], slug[2], slug[3]]
+        slugs_dict[slug[0]] = slug[1:]
 
     for slug, timestamp in timestamps.items():
         if slug in updated_slugs:
@@ -141,7 +185,51 @@ def write_slugs_updated_at(ranked_slugs, unranked_slugs, updated_slugs, timestam
 
     formatted_slugs = []
     for slug, dates in slugs_dict.items():
-        status = "v" if slug in ranked_slugs else ("u" if slug in unranked_slugs else "q")
-        formatted_slugs.append([slug, dates[0], dates[1], dates[2], status])
+        formatted_slugs.append([slug, dates[0], dates[1], dates[2]])
 
     slugs_updated_at.update("A2", formatted_slugs)
+
+def fetch_updated_players() -> list:
+    """
+    Fetches from the players sheet
+    """
+    authorize()
+    main_sheet = client.open_by_url(TTS_SHEET)
+    players_sheet = main_sheet.worksheet("players-needing-updates")
+    players_data = players_sheet.get("A2:B")
+
+    players = list()
+    for player in players_data:
+        if len(player) < 2:
+            continue
+        players.append(player[1])
+
+    return players
+
+
+def write_players(players) -> list:
+    """
+    Fetches from the players sheet
+    """
+    authorize()
+    main_sheet = client.open_by_url(TTS_SHEET)
+    players_sheet = main_sheet.worksheet("players-needing-updates")
+    players_data = players_sheet.get("A2:B")
+    
+    print(players_data)
+
+    new_players = list()
+    for player in players_data:
+        if len(player) < 2:
+            continue
+        if player[1] not in players:
+            new_players.append(player)
+
+    # atomic clear/write
+    main_sheet.values_batch_update({
+        "value_input_option": "RAW",
+        "data": [
+            {"range": "players-needing-updates!A2:B1000", "values": [["", ""]] * 999},
+            {"range": "players-needing-updates!A2", "values": new_players},
+        ],
+    })

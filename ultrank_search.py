@@ -7,7 +7,8 @@ import os
 import traceback
 from datetime import datetime, timedelta
 from ultrank_bulk import bulk_score, write_results
-from sheets_io import fetch_slug_classifications, fetch_slugs_updated_at, write_slugs_updated_at
+from ultrank_tiering import Addresses
+from sheets_io import fetch_slug_classifications, fetch_updated_at, write_updated_at, write_cached_addresses, fetch_updated_players, write_players
 
 class Tournament:
     def __init__(self, name, slug, start_at):
@@ -56,6 +57,44 @@ def events_updated_at_query(start_time, end_time, page=1, per_page=40):
 
     return query, variables
 
+def player_events_query(player_id, page=1, per_page=490):
+    query = '''query playerEventsQuery($pageNum: Int!, $perPage: Int!, $playerId: ID!) {
+  player(id: $playerId) {
+    user {
+      events (
+        query: {
+          page: $pageNum,
+          perPage: $perPage,
+          filter: {
+            videogameId: [1386],
+          }
+        } 
+      ) {
+        pageInfo {
+          totalPages
+        }
+        nodes {
+          slug
+          updatedAt
+          type
+          numEntrants
+          isOnline
+          tournament {
+            startAt
+          }
+        }
+      }
+    }
+  }
+}'''
+    variables = '''{{
+        "pageNum": {},
+        "perPage": {},
+        "playerId": {}
+    }}'''.format(page, per_page, player_id)
+
+    return query, variables
+
 def retrieve_events_updated_at(start_time, end_time):
     page = 1
     updated = dict()
@@ -63,12 +102,15 @@ def retrieve_events_updated_at(start_time, end_time):
     while True:
         query, variables = events_updated_at_query(start_time, end_time, page=page)
         resp = send_request(query, variables, quiet=True)
-        print('retrieved {} tournaments updated_at data'.format(len(resp['data']['tournaments']['nodes'])))
+
+        # This is required to avoid a crash... I think on an empty page but not 100% sure.
+        if resp['data']['tournaments'] is None:
+            break
 
         for tournament in resp['data']['tournaments']['nodes']:
             try:
                 events = [event for event in tournament['events'] if (
-                    event['type'] == 1 and event['videogame']['id'] == 1386 and event['numEntrants'] != None)]
+                    event['type'] == 1 and event['videogame']['id'] == 1386 and event['numEntrants'] != None and event['numEntrants'] > 64)]
 
                 for event in events:
                     updated[event['slug']] = [event['updatedAt'], event['numEntrants']]
@@ -81,26 +123,53 @@ def retrieve_events_updated_at(start_time, end_time):
         page += 1
     return updated
 
+def retrieve_events_by_player(start_time, end_time, player):
+    page = 1
+    event_slugs = []
 
-def filter_ranked_slugs(ranked_slugs, unranked_slugs, updated_at_tts, updated_at_startgg):
+    while True:
+        query, variables = player_events_query(player, page)
+        resp = send_request(query, variables, quiet=True)      
+        player_events = resp['data']['player']['user']['events']['nodes']
+
+        try:
+            events = [event for event in player_events if (
+                event['type'] == 1 and not event['isOnline'] 
+                and start_time <= event['tournament']['startAt'] and event['tournament']['startAt'] <= end_time 
+                and event['numEntrants'] != None and event['numEntrants'] > 64)]
+            for event in events:
+                event_slugs.append(event['slug'])
+        except Exception as e:
+            print(e)
+            print(player_events)
+            traceback.print_exc()
+
+        if page >= resp['data']['player']['user']['events']['pageInfo']['totalPages']:
+            break
+        page += 1
+    return event_slugs
+
+def determine_slugs_to_update(updated_at_tts, updated_at_startgg):
+    UPDATED_AT_INDEX = 0
+    ENTRANTS_INDEX = 1
+
     slugs = []
     for slug in updated_at_startgg:
-        if slug in unranked_slugs:
-            continue
-        elif slug not in updated_at_tts:
+        if slug not in updated_at_tts:
             slugs.append(slug)
-        elif updated_at_tts[slug][2] == "u":
+        elif datetime.fromisoformat(updated_at_tts[slug][UPDATED_AT_INDEX]).timestamp() < updated_at_startgg[slug][UPDATED_AT_INDEX]:
+            print(f"Need to update based on time! -- {slug}")
             slugs.append(slug)
-        elif slug in ranked_slugs and updated_at_tts[slug][2] != "v":
+        elif updated_at_tts[slug][ENTRANTS_INDEX] != str(updated_at_startgg[slug][ENTRANTS_INDEX]):
+            print(f"Need to update, number of entrants changed from {updated_at_tts[slug][ENTRANTS_INDEX]} to {updated_at_startgg[slug][ENTRANTS_INDEX]} -- slug")
             slugs.append(slug)
-        elif slug not in ranked_slugs and updated_at_tts[slug][2] == "v":
-            slugs.append(slug)
-        elif datetime.fromisoformat(updated_at_tts[slug][0]).timestamp() < updated_at_startgg[slug][0]:
-            print("Need to update based on time!", slug)
-            slugs.append(slug)
-        elif updated_at_tts[slug][1] != str(updated_at_startgg[slug][1]):
-            print("Need to update, number of entrants changed from", updated_at_tts[slug][1], "to",  updated_at_startgg[slug][1], slug)
-            slugs.append(slug)
+
+    return slugs
+
+def determine_slugs_to_force_update(players, scan_time, end_time):
+    slugs = []
+    for player in players:
+        slugs = slugs + retrieve_events_by_player(scan_timestamp, end_time, player)
 
     return slugs
 
@@ -113,17 +182,38 @@ if __name__ == '__main__':
     end_time = dateparser.parse(end_time_str)
     end_timestamp = int(end_time.timestamp())
 
+    # how far back must we go when updating player's values
+    scan_time_str = input('player update scan starting time: ')
+    scan_time = dateparser.parse(scan_time_str)
+    scan_timestamp = int(scan_time.timestamp())
+
     print('using start timestamp {} and end timestamp {}'.format(
         str(start_timestamp), str(end_timestamp)))
 
-    ranked_slugs, unranked_slugs = fetch_slug_classifications()
-
-    slugs_updated_at = fetch_slugs_updated_at()
+    slugs_updated_at = fetch_updated_at()
     startgg_updated_at = retrieve_events_updated_at(start_timestamp, end_timestamp)
 
-    events_needing_updates = filter_ranked_slugs(ranked_slugs, unranked_slugs, slugs_updated_at, startgg_updated_at)
+    # return is a list of slugs
+    events_needing_updates = determine_slugs_to_update(slugs_updated_at, startgg_updated_at)
 
-    results = bulk_score([{'slug': slug, 'invit': False} for slug in events_needing_updates])
+    # TODO:
+    # read from the players list
+    # find all events with these players and force add to the events needing updates
+    players = fetch_updated_players()
+    player_events_needing_updates = determine_slugs_to_force_update(players, scan_timestamp, end_timestamp)
 
-    write_results(results, ranked_slugs, unranked_slugs)
-    write_slugs_updated_at(ranked_slugs, unranked_slugs, events_needing_updates, startgg_updated_at)
+    events_temp = events_needing_updates + player_events_needing_updates
+    events = list(dict.fromkeys(events_temp))
+
+    results = bulk_score([{'slug': slug, 'invit': False} for slug in events])
+
+    for result in results:
+        print([result.date.isoformat(), result.tournament, "", "", "", result.event, result.region.note, result.slug, 
+                                str(result.is_invitational), result.score, result.max_potential_score(), "", result.entrants,
+                                str(result.should_count())])
+
+    write_cached_addresses(Addresses().addresses)
+    write_results(results)
+    write_updated_at(events, startgg_updated_at)
+    write_players(players)
+    # clear the players
