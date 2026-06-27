@@ -9,7 +9,7 @@ Requirements:
   ultrank_invitational.csv
 """
 
-from startgg_toolkit import send_request, isolate_slug
+from startgg_toolkit import send_request, isolate_slug, refresh_startgg_key
 from sheets_io import fetch_cached_addresses
 from geopy.geocoders import Nominatim
 import csv
@@ -34,6 +34,8 @@ ENTRANT_FLOOR = {
 }
 
 NEW_MULT_SYSTEM_DATE = datetime.date.fromisoformat('2024-12-16')
+
+ADDRESS_DEBUG = False
 
 class Addresses:
     _instance = None
@@ -471,9 +473,15 @@ class Tournament:
         self.event_slug = isolate_slug(event_slug)
         self.is_invitational = is_invitational
         self.tier = None
+        self.use_location = location
 
         self.gather_general_data()
-        self.gather_location_info()
+        if self.use_location:
+            self.gather_location_info()
+        else:
+            self.address = {'country_code': 'aq'}
+        if ADDRESS_DEBUG:
+            print(self.address)
         self.retrieve_start_time()
         self.gather_entrant_counts()
 
@@ -536,6 +544,10 @@ class Tournament:
             self.address = cached
             return
 
+        if ADDRESS_DEBUG:
+            print(self.lat)
+            print(self.lng)
+
         if self.lat < -80:
             self.address = {'country_code': 'aq'}
             return
@@ -582,8 +594,8 @@ class Tournament:
 
         for region in region_mults:
             match = region.match(self.address, time=self.start_time)
-            # if match != 0:
-            #     print('{} {}'.format(match, str(region)))
+            if ADDRESS_DEBUG and match != 0:
+                print('{} {}'.format(match, str(region)))
             if match > best_match:
                 best_region = region
                 best_match = match
