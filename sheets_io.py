@@ -3,8 +3,6 @@ import json
 import gspread
 from datetime import datetime
 from google.oauth2.service_account import Credentials
-import requests
-import re
 
 client = None
 TTS_SHEET = "https://docs.google.com/spreadsheets/d/1hz6wuj-BowOsyzRIowoAWRyVEJk7tHHFUNhJiJSgT48"
@@ -18,9 +16,11 @@ CLASSIFICATION_INDEX = 2
 OVERRIDE_DATE_INDEX = 3
 NICKNAME_INDEX = 4
 SLUG_INDEX = 7
-POTENTIAL_SCORE_INDEX = 10
+SCORE_INDEX = 9
 OVERRIDE_SCORE_INDEX = 11
+JUSTIFICATION_INDEX = 15
 NOTE_INDEX = 16
+EVENTS_COLUMNS = 17
 
 def authorize():
     global client
@@ -86,40 +86,43 @@ def create_events_dict(tts_events, updated_events):
             continue
 
         events_dict[event[SLUG_INDEX]] = event[0:SLUG_INDEX] + event[SLUG_INDEX + 1:]
+
+        # We need to be using full rows. Otherwise things get messed up.
+        while len(events_dict[event[SLUG_INDEX]]) < EVENTS_COLUMNS - 1:
+            events_dict[event[SLUG_INDEX]].append('')
     
 
     for event in updated_events:
         if event[SLUG_INDEX] in events_dict:
             current_event = events_dict[event[SLUG_INDEX]]
 
-            print(current_event)
-            print(event)
-
             # Override purple fields (ex: nickname)
             for index, field in enumerate(current_event):
                 if index in [CLASSIFICATION_INDEX, OVERRIDE_DATE_INDEX, NICKNAME_INDEX, OVERRIDE_SCORE_INDEX - 1, NOTE_INDEX - 1]:
                     event[index + 1 if index >= SLUG_INDEX else index] = field
 
-            print(event)
-
+        if event[JUSTIFICATION_INDEX] == None:
+            event[JUSTIFICATION_INDEX] = ''
 
         events_dict[event[SLUG_INDEX]] = event[0:SLUG_INDEX] + event[SLUG_INDEX + 1:]
 
     return events_dict
 
 def sanitize(string: str):
-    return re.sub(r'(?<!")"(?!")', '""', string)
+    return string.replace('""', '"').replace('"', '""')
 
 def format_event_link(name, slug):
     """
     Creates a hyperlink out of an event slug and name.
     """
-    return '=HYPERLINK(\"https://start.gg/' + slug + "\",\"" + sanitize(name) + '\")'
+    return '=HYPERLINK(\"https://start.gg/' + sanitize(slug) + "\",\"" + sanitize(name) + '\")'
 
 def format_classification(classification):
     classification = classification.upper()
     if classification == "R" or classification == "RANKED":
         classification = "RANKED"
+    elif classification == "U" or classification == "UNRANKED":
+        classification = "UNRANKED"
     return classification
 
 def write_events(data):
@@ -131,7 +134,7 @@ def write_events(data):
     main_sheet = client.open_by_url(TTS_SHEET)
     events_sheet = main_sheet.worksheet(EVENTS_SHEET)
 
-    events = events_sheet.get("A3:P")
+    events = events_sheet.get("A3:Q")
     events_dict = create_events_dict(events, data)
 
     formatted_events = []
@@ -140,8 +143,24 @@ def write_events(data):
         formatted_events[-1][TOURNAMENT_INDEX] = format_event_link(formatted_events[-1][TOURNAMENT_INDEX], slug)
         formatted_events[-1][CLASSIFICATION_INDEX] = format_classification(formatted_events[-1][CLASSIFICATION_INDEX])
 
-    formatted_events.sort(key=lambda x: int(x[POTENTIAL_SCORE_INDEX]), reverse=True)
+    formatted_events.sort(key=lambda x: int(x[SCORE_INDEX]), reverse=True)
     formatted_events.sort(key=lambda x: x[DATE_INDEX], reverse=True)
+
+    # USER_ENTERED lets hyperlinks show up.
+    events_sheet.spreadsheet.values_batch_update({
+        'value_input_option': 'USER_ENTERED',
+        'data': [
+            {'range': f'{events_sheet.title}!B3', 'values': [row[1:2] for row in formatted_events]},
+        ],
+    })
+
+    events_sheet.spreadsheet.values_batch_update({
+        'value_input_option': 'RAW',
+        'data': [
+            {'range': f'{events_sheet.title}!A3', 'values': [row[0:1] for row in formatted_events]},
+            {'range': f'{events_sheet.title}!C3', 'values': [row[2:] for row in formatted_events]},
+        ],
+    })
 
     events_sheet.update("A3", formatted_events, value_input_option='USER_ENTERED')
 

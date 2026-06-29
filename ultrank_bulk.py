@@ -171,7 +171,7 @@ def validate_event(event):
 
     for skip in skip_weekly_check:
         if skip.lower() in event.event.lower():
-            return [True]
+            return [True, 'skip_weekly_check, matched: ' + skip.lower()]
 
     if check_blacklist(event.ownerDiscriminator):
         skip_reason = 'Tournament Creator Blacklisted'
@@ -257,9 +257,10 @@ def write_results(results):
         if isinstance(result, TournamentTieringResult):
             formatted_result = [result.date.isoformat(), result.tournament, "", "", "", result.event, result.region.note, result.slug, 
                                 str(result.is_invitational), result.score, result.max_potential_score(), "", result.entrants,
-                                str(result.should_count()), ""]
-
+                                str(result.should_count())]
             formatted_result += validate_event(result)
+            formatted_result += [""]
+
             formatted_results.append(formatted_result)
         else:
             print("Error: Not a valid TournamentTieringResult -- ", result)

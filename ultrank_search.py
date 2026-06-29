@@ -18,6 +18,7 @@ class Tournament:
         self.time_since = start_at
         self.similarity = 0
 
+# current per_page may be unstable
 def events_updated_at_query(start_time, end_time, page=1, per_page=40):
     query = '''query tournamentsQuery($pageNum: Int!, $perPage: Int!, $startTime: Timestamp!, $endTime: Timestamp!) {
   tournaments (
@@ -96,31 +97,43 @@ def player_events_query(player_id, page=1, per_page=490):
     return query, variables
 
 def retrieve_events_updated_at(start_time, end_time):
-    page = 1
+    TIME_STEP = 4000000
+    TIME_STEP_BUFFER = 400000
     updated = dict()
 
-    while True:
-        query, variables = events_updated_at_query(start_time, end_time, page=page)
-        resp = send_request(query, variables, quiet=True)
+    time_slices = []
+    time = start_time
+    while time < end_time:
+        time_slices.append((time, min(time + TIME_STEP, end_time) + TIME_STEP_BUFFER))
+        time += TIME_STEP
 
-        # This is required to avoid a crash... I think on an empty page but not 100% sure.
-        if resp['data']['tournaments'] is None:
-            break
+    for slice in time_slices:
+      page = 0
+      while True:
+          query, variables = events_updated_at_query(slice[0], slice[1], page=page)
+          resp = send_request(query, variables, quiet=True)
 
-        for tournament in resp['data']['tournaments']['nodes']:
-            try:
-                events = [event for event in tournament['events'] if (
-                    event['type'] == 1 and event['videogame']['id'] == 1386 and event['numEntrants'] != None and event['numEntrants'] > 64)]
+          # To avoid crashes... should ideally never be triggered.
+          if resp['data']['tournaments'] is None:
+              print('Early exit from retrieve_events_updated_at', resp)
+              break
 
-                for event in events:
-                    updated[event['slug']] = [event['updatedAt'], event['numEntrants']]
-            except Exception as e:
-                print(e)
-                print(tournament)
-                traceback.print_exc()
-        if page >= resp['data']['tournaments']['pageInfo']['totalPages']:
-            break
-        page += 1
+          for tournament in resp['data']['tournaments']['nodes']:
+              try:
+                  events = [event for event in tournament['events'] if (
+                      event['type'] == 1 and event['videogame']['id'] == 1386 and event['numEntrants'] != None and event['numEntrants'] >= 8)]
+
+                  for event in events:
+                      updated[event['slug']] = [event['updatedAt'], event['numEntrants']]
+              except Exception as e:
+                  print(e)
+                  print(tournament)
+                  traceback.print_exc()
+          if page >= resp['data']['tournaments']['pageInfo']['totalPages']:
+              break
+          if page >= resp['data']['tournaments']['pageInfo']['totalPages']:
+              print(f"Page count overflow: {resp['data']['tournaments']['pageInfo']['totalPages']}")
+          page += 1
     return updated
 
 def retrieve_events_by_player(start_time, end_time, player):
@@ -136,7 +149,7 @@ def retrieve_events_by_player(start_time, end_time, player):
             events = [event for event in player_events if (
                 event['type'] == 1 and not event['isOnline'] 
                 and start_time <= event['tournament']['startAt'] and event['tournament']['startAt'] <= end_time 
-                and event['numEntrants'] != None and event['numEntrants'] > 64)]
+                and event['numEntrants'] != None and event['numEntrants'] >= 8)]
             for event in events:
                 event_slugs.append(event['slug'])
         except Exception as e:
@@ -161,7 +174,7 @@ def determine_slugs_to_update(updated_at_tts, updated_at_startgg):
             print(f"Need to update based on time! -- {slug}")
             slugs.append(slug)
         elif updated_at_tts[slug][ENTRANTS_INDEX] != str(updated_at_startgg[slug][ENTRANTS_INDEX]):
-            print(f"Need to update, number of entrants changed from {updated_at_tts[slug][ENTRANTS_INDEX]} to {updated_at_startgg[slug][ENTRANTS_INDEX]} -- slug")
+            print(f"Need to update, number of entrants changed from {updated_at_tts[slug][ENTRANTS_INDEX]} to {updated_at_startgg[slug][ENTRANTS_INDEX]} -- {slug}")
             slugs.append(slug)
 
     return slugs
