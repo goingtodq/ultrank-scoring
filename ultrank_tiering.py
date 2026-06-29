@@ -555,7 +555,7 @@ class Tournament:
         # Try 10 times
         for i in range(5):
             try:
-                time.sleep(5)
+                time.sleep(15)
                 print("Nominatim Request")
                 self.address = geo.reverse('{}, {}'.format(
                     self.lat, self.lng)).raw['address']
