@@ -3,6 +3,8 @@ import json
 import gspread
 from datetime import datetime
 from google.oauth2.service_account import Credentials
+from zoneinfo import ZoneInfo
+
 
 client = None
 TTS_SHEET = "https://docs.google.com/spreadsheets/d/1hz6wuj-BowOsyzRIowoAWRyVEJk7tHHFUNhJiJSgT48"
@@ -12,15 +14,15 @@ EVENTS_SHEET = "all-events"
 
 DATE_INDEX = 0
 TOURNAMENT_INDEX = 1
-CLASSIFICATION_INDEX = 2
-OVERRIDE_DATE_INDEX = 3
-NICKNAME_INDEX = 4
-SLUG_INDEX = 7
-SCORE_INDEX = 9
-OVERRIDE_SCORE_INDEX = 11
-JUSTIFICATION_INDEX = 15
-NOTE_INDEX = 16
-EVENTS_COLUMNS = 17
+CLASSIFICATION_INDEX = 3
+OVERRIDE_DATE_INDEX = 4
+NICKNAME_INDEX = 5
+SLUG_INDEX = 8
+SCORE_INDEX = 10
+OVERRIDE_SCORE_INDEX = 12
+JUSTIFICATION_INDEX = 16
+NOTE_INDEX = 17
+EVENTS_COLUMNS = 18
 
 def authorize():
     global client
@@ -134,7 +136,7 @@ def write_events(data):
     main_sheet = client.open_by_url(TTS_SHEET)
     events_sheet = main_sheet.worksheet(EVENTS_SHEET)
 
-    events = events_sheet.get("A3:Q")
+    events = events_sheet.get("A3:R")
     events_dict = create_events_dict(events, data)
 
     formatted_events = []
@@ -171,17 +173,17 @@ def fetch_updated_at():
     authorize()
     main_sheet = client.open_by_url(TTS_SHEET)
     updated_at_sheet = main_sheet.worksheet("slugs-updated-at")
-    slugs = updated_at_sheet.get("A2:D")
+    slugs = updated_at_sheet.get("A2:E")
 
     formatted_slugs = dict()
     for slug in slugs:
-        if len(slug) < 4:
+        if len(slug) < 5:
             continue
-        formatted_slugs[slug[0]] = [slug[1], slug[3]]
+        formatted_slugs[slug[0]] = [slug[1], slug[3], slug[4]]
 
     return formatted_slugs
 
-def write_updated_at(updated_slugs, timestamps):
+def write_updated_at(results: list, startgg_updated_at):
     """
     Writes to the update_at sheet.
     """
@@ -190,21 +192,27 @@ def write_updated_at(updated_slugs, timestamps):
     main_sheet = client.open_by_url(TTS_SHEET)
     slugs_updated_at = main_sheet.worksheet("slugs-updated-at")
 
-    slugs = slugs_updated_at.get("A2:D")
+    slugs = slugs_updated_at.get("A2:E")
     
     slugs_dict = dict()
     for slug in slugs:
-        if len(slug) < 4:
+        if len(slug) < 5:
             continue
         slugs_dict[slug[0]] = slug[1:]
 
-    for slug, timestamp in timestamps.items():
-        if slug in updated_slugs:
-            slugs_dict[slug] = [datetime.fromtimestamp(timestamp[0]).isoformat(), datetime.now().isoformat(), timestamp[1]]
+    for result in results:
+        slugs_dict[result.slug] = [datetime.fromtimestamp(result.updated_at).isoformat(),
+                                   datetime.now(ZoneInfo("America/New_York")).isoformat(),
+                                   result.entrants,
+                                   result.activity_state]
+        
+    for key, data in startgg_updated_at.items():
+        if key in slugs_dict:
+            slugs_dict[key][2] = data[1]
 
     formatted_slugs = []
-    for slug, dates in slugs_dict.items():
-        formatted_slugs.append([slug, dates[0], dates[1], dates[2]])
+    for slug, info in slugs_dict.items():
+        formatted_slugs.append([slug, info[0], info[1], info[2], info[3]])
 
     slugs_updated_at.update("A2", formatted_slugs)
 
@@ -226,9 +234,9 @@ def fetch_updated_players() -> list:
     return players
 
 
-def write_players(players) -> list:
+def write_players(players):
     """
-    Fetches from the players sheet
+    Writes to the players sheet
     """
     authorize()
     main_sheet = client.open_by_url(TTS_SHEET)
@@ -252,3 +260,12 @@ def write_players(players) -> list:
             {"range": "players-needing-updates!A2", "values": new_players},
         ],
     })
+
+def write_script_endtime():
+    """
+    Writes the script end time to the all events sheet
+    """
+    authorize()
+    main_sheet = client.open_by_url(TTS_SHEET)
+    events_sheet = main_sheet.worksheet(EVENTS_SHEET)
+    events_sheet.update_acell("A1", "Last update by script: " + datetime.now(ZoneInfo("America/New_York")).replace(tzinfo=None).isoformat(timespec="seconds") + " (ET)")

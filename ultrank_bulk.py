@@ -235,16 +235,13 @@ def bulk_score(slugs):
             try:
                 t = Tournament(slug, invit)
                 result = t.calculate_tier()
-
                 results.append(result)
 
             except Exception as e:
                 print(e)
                 print('catastrophic failure')
-                results.append(slug)
         else:
             print('skipping slug {}'.format(slug))
-            results.append(slug)
 
     return results
 
@@ -255,7 +252,7 @@ def write_results(results):
     for result in results:
         formatted_result = []
         if isinstance(result, TournamentTieringResult):
-            formatted_result = [result.date.isoformat(), result.tournament, "", "", "", result.event, result.region.note, result.slug, 
+            formatted_result = [result.date.isoformat(), result.tournament, result.activity_state, "", "", "", result.event, result.region.note, result.slug, 
                                 str(result.is_invitational), result.score, result.max_potential_score(), "", result.entrants,
                                 str(result.should_count())]
             formatted_result += validate_event(result)

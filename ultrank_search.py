@@ -8,7 +8,7 @@ import traceback
 from datetime import datetime, timedelta
 from ultrank_bulk import bulk_score, write_results
 from ultrank_tiering import Addresses
-from sheets_io import fetch_slug_classifications, fetch_updated_at, write_updated_at, write_cached_addresses, fetch_updated_players, write_players
+from sheets_io import fetch_slug_classifications, fetch_updated_at, write_updated_at, write_cached_addresses, fetch_updated_players, write_players, write_script_endtime
 
 class Tournament:
     def __init__(self, name, slug, start_at):
@@ -39,6 +39,7 @@ def events_updated_at_query(start_time, end_time, page=1, per_page=40):
     nodes {
       events {
         slug
+        state
         updatedAt
         type
         numEntrants
@@ -124,7 +125,7 @@ def retrieve_events_updated_at(start_time, end_time):
                       event['type'] == 1 and event['videogame']['id'] == 1386 and event['numEntrants'] != None and event['numEntrants'] >= 8)]
 
                   for event in events:
-                      updated[event['slug']] = [event['updatedAt'], event['numEntrants']]
+                      updated[event['slug']] = [event['updatedAt'], event['numEntrants'], event['state']]
               except Exception as e:
                   print(e)
                   print(tournament)
@@ -165,10 +166,12 @@ def retrieve_events_by_player(start_time, end_time, player):
 def determine_slugs_to_update(updated_at_tts, updated_at_startgg):
     UPDATED_AT_INDEX = 0
     ENTRANTS_INDEX = 1
+    ACTIVITY_STATE_INDEX = 2
 
     slugs = []
     for slug in updated_at_startgg:
         if slug not in updated_at_tts:
+            print(f"New event! -- {slug}")
             slugs.append(slug)
         elif datetime.fromisoformat(updated_at_tts[slug][UPDATED_AT_INDEX]).timestamp() < updated_at_startgg[slug][UPDATED_AT_INDEX]:
             print(f"Need to update based on time! -- {slug}")
@@ -176,6 +179,10 @@ def determine_slugs_to_update(updated_at_tts, updated_at_startgg):
         elif updated_at_tts[slug][ENTRANTS_INDEX] != str(updated_at_startgg[slug][ENTRANTS_INDEX]):
             print(f"Need to update, number of entrants changed from {updated_at_tts[slug][ENTRANTS_INDEX]} to {updated_at_startgg[slug][ENTRANTS_INDEX]} -- {slug}")
             slugs.append(slug)
+        elif updated_at_tts[slug][ACTIVITY_STATE_INDEX] != str(updated_at_startgg[slug][ACTIVITY_STATE_INDEX]):
+            print(f"Need to update, activity state changed from {updated_at_tts[slug][ACTIVITY_STATE_INDEX]} to {updated_at_startgg[slug][ACTIVITY_STATE_INDEX]} -- {slug}")
+            slugs.append(slug)
+        # TODO elif, update on active ACTIVITY_STATE?
 
     return slugs
 
@@ -222,11 +229,11 @@ if __name__ == '__main__':
 
     for result in results:
         print([result.date.isoformat(), result.tournament, "", "", "", result.event, result.region.note, result.slug, 
-                                str(result.is_invitational), result.score, result.max_potential_score(), "", result.entrants,
-                                str(result.should_count())])
+               str(result.is_invitational), result.score, result.max_potential_score(), "", result.entrants,
+               str(result.should_count()), result.activity_state])
 
     write_cached_addresses(Addresses().addresses)
     write_results(results)
-    write_updated_at(events, startgg_updated_at)
+    write_updated_at(results, startgg_updated_at)
     write_players(players)
-    # clear the players
+    write_script_endtime()

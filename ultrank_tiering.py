@@ -184,9 +184,10 @@ class PlayerValueGroup:
 
 
 class TournamentTieringResult:
-    def __init__(self, slug, score, entrants, region, values, dqs, potential, date, eventName, 
-                 tournamentName, tournamentSlug, ownerDiscriminator, is_invitational=False, phases=[], dq_count=-1):
+    def __init__(self, slug, updated_at, score, entrants, region, values, dqs, potential, date, eventName, 
+                 tournamentName, tournamentSlug, ownerDiscriminator, activity_state="NO_STATE", is_invitational=False, phases=[], dq_count=-1):
         self.slug = slug
+        self.updated_at = updated_at
         self.score = score
         self.values = values
         self.dqs = dqs
@@ -198,6 +199,7 @@ class TournamentTieringResult:
         self.tournament = tournamentName
         self.tournamentSlug = tournamentSlug
         self.ownerDiscriminator = ownerDiscriminator
+        self.activity_state = activity_state
         self.is_invitational = is_invitational
         self.dq_count = dq_count
         self.phases = phases
@@ -488,9 +490,7 @@ class Tournament:
     def gather_general_data(self):
         query, variables = general_query(self.event_slug)
         resp = send_request(query, variables)
-
         self.general_data = resp['data']
-
 
     def gather_entrant_counts(self):
         # Check if the event has progressed enough to detect DQs.
@@ -669,9 +669,9 @@ class Tournament:
             reverse=True, key=lambda p: (p.dqs, p.value.points))
         potential_matches.sort(key=lambda m: (m.dqs, m.tag))
 
-        self.tier = TournamentTieringResult(self.event_slug, total_score, self.total_entrants, best_region, valued_participants,
+        self.tier = TournamentTieringResult(self.event_slug, self.general_data['event']['updatedAt'], total_score, self.total_entrants, best_region, valued_participants,
                                             participants_with_dqs, potential_matches, self.start_time, self.general_data['event']['name'], self.general_data['event']['tournament']['name'],
-                                            self.general_data['event']['tournament']['slug'], self.general_data['event']['tournament']['owner']['discriminator'],
+                                            self.general_data['event']['tournament']['slug'], self.general_data['event']['tournament']['owner']['discriminator'], self.general_data['event']['state'],
                                             is_invitational=self.is_invitational, phases=[phase['name'] for phase in self.phases], dq_count=self.total_dqs)
 
         return self.tier
@@ -757,6 +757,8 @@ def general_query(event_slug):
     query = '''query generalQuery($eventSlug: String!) {
   event(slug: $eventSlug) {
     name
+    state
+    updatedAt
     tournament {
       name
       startAt
