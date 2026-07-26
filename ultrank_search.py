@@ -8,7 +8,7 @@ import traceback
 from datetime import datetime, timedelta
 from ultrank_bulk import bulk_score, write_results
 from ultrank_tiering import Addresses
-from sheets_io import fetch_slug_classifications, fetch_updated_at, write_updated_at, write_cached_addresses, fetch_updated_players, write_players, write_script_endtime
+from sheets_io import fetch_updated_at, write_updated_at, write_cached_addresses, fetch_updated_players, write_players, write_script_endtime
 
 class Tournament:
     def __init__(self, name, slug, start_at):
@@ -182,7 +182,9 @@ def determine_slugs_to_update(updated_at_tts, updated_at_startgg):
         elif updated_at_tts[slug][ACTIVITY_STATE_INDEX] != str(updated_at_startgg[slug][ACTIVITY_STATE_INDEX]):
             print(f"Need to update, activity state changed from {updated_at_tts[slug][ACTIVITY_STATE_INDEX]} to {updated_at_startgg[slug][ACTIVITY_STATE_INDEX]} -- {slug}")
             slugs.append(slug)
-        # TODO elif, update on active ACTIVITY_STATE?
+        elif updated_at_startgg[slug][ACTIVITY_STATE_INDEX] == "ACTIVE":
+            print(f"Need to update, active event {updated_at_startgg[slug][ACTIVITY_STATE_INDEX]}")
+            slugs.append(slug)
 
     return slugs
 
@@ -203,9 +205,9 @@ if __name__ == '__main__':
     end_timestamp = int(end_time.timestamp())
 
     # how far back must we go when updating player's values
-    scan_time_str = input('player update scan starting time: ')
-    scan_time = dateparser.parse(scan_time_str)
-    scan_timestamp = int(scan_time.timestamp())
+    # scan_time_str = input('player update scan starting time: ')
+    # scan_time = dateparser.parse(scan_time_str)
+    # scan_timestamp = int(scan_time.timestamp())
 
     print('using start timestamp {} and end timestamp {}'.format(
         str(start_timestamp), str(end_timestamp)))
@@ -216,24 +218,23 @@ if __name__ == '__main__':
     # return is a list of slugs
     events_needing_updates = determine_slugs_to_update(slugs_updated_at, startgg_updated_at)
 
-    # TODO:
     # read from the players list
     # find all events with these players and force add to the events needing updates
-    players = fetch_updated_players()
-    player_events_needing_updates = determine_slugs_to_force_update(players, scan_timestamp, end_timestamp)
+    # players = fetch_updated_players()
+    # player_events_needing_updates = determine_slugs_to_force_update(players, scan_timestamp, end_timestamp)
+    # events_needing_updates = events_needing_updates + player_events_needing_updates
 
-    events_temp = events_needing_updates + player_events_needing_updates
-    events = list(dict.fromkeys(events_temp))
+    events = list(dict.fromkeys(events_needing_updates))
 
     results = bulk_score([{'slug': slug, 'invit': False} for slug in events])
 
     for result in results:
-        print([result.date.isoformat(), result.tournament, "", "", "", result.event, result.region.note, result.slug, 
-               str(result.is_invitational), result.score, result.max_potential_score(), "", result.entrants,
-               str(result.should_count()), result.activity_state])
+        print([result.date.isoformat(), result.tournament, result.activity_state, result.set_progress, "", "", "", 
+               result.event, result.region.note, result.slug,  str(result.is_invitational), result.score, 
+               result.max_potential_score(), "", result.entrants, str(result.should_count())])
 
     write_cached_addresses(Addresses().addresses)
     write_results(results)
     write_updated_at(results, startgg_updated_at)
-    write_players(players)
+    # write_players(players)
     write_script_endtime()

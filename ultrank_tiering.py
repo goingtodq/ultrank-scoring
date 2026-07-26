@@ -184,7 +184,7 @@ class PlayerValueGroup:
 
 
 class TournamentTieringResult:
-    def __init__(self, slug, updated_at, score, entrants, region, values, dqs, potential, date, eventName, 
+    def __init__(self, slug, updated_at, score, entrants, set_progress, region, values, dqs, potential, date, eventName, 
                  tournamentName, tournamentSlug, ownerDiscriminator, activity_state="NO_STATE", is_invitational=False, phases=[], dq_count=-1):
         self.slug = slug
         self.updated_at = updated_at
@@ -194,6 +194,7 @@ class TournamentTieringResult:
         self.potential = potential
         self.date = date
         self.entrants = entrants
+        self.set_progress = set_progress
         self.region = region
         self.event = eventName
         self.tournament = tournamentName
@@ -486,6 +487,7 @@ class Tournament:
             print(self.address)
         self.retrieve_start_time()
         self.gather_entrant_counts()
+        self.gather_event_progress()
 
     def gather_general_data(self):
         query, variables = general_query(self.event_slug)
@@ -526,6 +528,26 @@ class Tournament:
 
         # Comment out if subtracting generic entrant dqs
         self.total_dqs = -1
+
+    def gather_event_progress(self):
+        if self.general_data['event']['phases'] is None:
+            self.set_progress = 0
+            return
+        
+        phases = collect_phases(self.event_slug, self.general_data['event']['phases'])
+        phase_ids = [phase['id'] for phase in phases]
+
+        if len(phase_ids) == 0:
+            self.set_progress = 0
+            return
+
+        query, variables = set_progress_query(self.event_slug, phase_ids)
+        resp = send_request(query, variables)
+
+        total = resp['data']['event']['totalSets']['pageInfo']['total']
+        completed = resp['data']['event']['completedSets']['pageInfo']['total']
+
+        self.set_progress = completed / total if total > 0 else 0
 
     def gather_location_info(self):
         geo = Nominatim(user_agent='https://github.com/goingtodq/ultrank-scoring (iamgoingtodq11@gmail.com)', timeout=10)
@@ -669,7 +691,7 @@ class Tournament:
             reverse=True, key=lambda p: (p.dqs, p.value.points))
         potential_matches.sort(key=lambda m: (m.dqs, m.tag))
 
-        self.tier = TournamentTieringResult(self.event_slug, self.general_data['event']['updatedAt'], total_score, self.total_entrants, best_region, valued_participants,
+        self.tier = TournamentTieringResult(self.event_slug, self.general_data['event']['updatedAt'], total_score, self.total_entrants, self.set_progress, best_region, valued_participants,
                                             participants_with_dqs, potential_matches, self.start_time, self.general_data['event']['name'], self.general_data['event']['tournament']['name'],
                                             self.general_data['event']['tournament']['slug'], self.general_data['event']['tournament']['owner']['discriminator'], self.general_data['event']['state'],
                                             is_invitational=self.is_invitational, phases=[phase['name'] for phase in self.phases], dq_count=self.total_dqs)
@@ -749,6 +771,24 @@ def sets_query(event_slug, page_num=1, per_page=50, phases=None):
         "perPage": {},
         "phases": {}
     }}'''.format(event_slug, page_num, per_page, f'{phases if phases is not None else "[]"}')
+    return query, variables
+
+def set_progress_query(event_slug, phases):
+    """Generates a query to retrieve information related to the progress of the event
+    Full progress can be inferred from the total number of sets + total number of completed sets.
+    (Not 100% sure this always works; does it interact well with phases? Needs more testing.)
+    """
+    query = '''query getProgress($eventSlug: String!, $phases: [ID]!) {
+    event(slug: $eventSlug) {
+        totalSets: sets(page: 1, perPage: 1, filters: { phaseIds: $phases }) { pageInfo { total }}
+        completedSets: sets(page: 1, perPage: 1, filters: { phaseIds: $phases, state: [3] }) { pageInfo { total }}
+    }
+}'''
+    variables = '''{{
+        "eventSlug": "{}",
+        "phases": {}
+    }}'''.format(event_slug, phases)
+
     return query, variables
 
 def general_query(event_slug):
@@ -848,7 +888,6 @@ def collect_phases(event_slug, phases):
 
     return [phase for phase in phases if not phase['isExhibition']]
 
-# TODO: review
 def get_entrants(event_slug, base_entrants):
     page = 1
     participants = set()

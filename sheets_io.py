@@ -1,28 +1,30 @@
 import os
 import json
 import gspread
-from datetime import datetime
+from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
 from zoneinfo import ZoneInfo
 
 
 client = None
-TTS_SHEET = "https://docs.google.com/spreadsheets/d/1hz6wuj-BowOsyzRIowoAWRyVEJk7tHHFUNhJiJSgT48"
+TTS_SHEET = "https://docs.google.com/spreadsheets/d/1aQEUAPqzF49OPMNNyPlelH5mRKtTWfrLHXI18R6Qfc0"
 
 NOMINATIM_SHEET = "nominatim-cache"
 EVENTS_SHEET = "all-events"
 
 DATE_INDEX = 0
 TOURNAMENT_INDEX = 1
-CLASSIFICATION_INDEX = 3
-OVERRIDE_DATE_INDEX = 4
-NICKNAME_INDEX = 5
-SLUG_INDEX = 8
-SCORE_INDEX = 10
-OVERRIDE_SCORE_INDEX = 12
-JUSTIFICATION_INDEX = 16
-NOTE_INDEX = 17
-EVENTS_COLUMNS = 18
+ACTIVITY_STATE_INDEX = 2
+PROGRESS_INDEX = 3
+CLASSIFICATION_INDEX = 4
+OVERRIDE_DATE_INDEX = 5
+NICKNAME_INDEX = 6
+SLUG_INDEX = 9
+SCORE_INDEX = 11
+OVERRIDE_SCORE_INDEX = 13
+JUSTIFICATION_INDEX = 17
+NOTE_INDEX = 18
+EVENTS_COLUMNS = 19
 
 def authorize():
     global client
@@ -56,26 +58,6 @@ def write_cached_addresses(addresses):
         addresses_list.append([ll, json.dumps(address)])
 
     addresses_sheet.update("A2", addresses_list)
-
-def fetch_slug_classifications():
-    authorize()
-    main_sheet = client.open_by_url(TTS_SHEET)
-    events_sheet = main_sheet.worksheet(EVENTS_SHEET)
-
-    slugs = events_sheet.get("G2:G")
-    classifications = events_sheet.get("C2:C")
-
-    event_classifications = dict()
-
-    for i in range(len(slugs)):
-        slug = slugs[i]
-        classification = classifications[i]
-        if slug == "" or classification == "":
-            continue
-        else:
-            event_classifications[slug] = classification
-
-    return event_classifications
 
 def create_events_dict(tts_events, updated_events):
     """
@@ -136,7 +118,7 @@ def write_events(data):
     main_sheet = client.open_by_url(TTS_SHEET)
     events_sheet = main_sheet.worksheet(EVENTS_SHEET)
 
-    events = events_sheet.get("A3:R")
+    events = events_sheet.get("A3:S")
     events_dict = create_events_dict(events, data)
 
     formatted_events = []
@@ -164,7 +146,7 @@ def write_events(data):
         ],
     })
 
-    events_sheet.update("A3", formatted_events, value_input_option='USER_ENTERED')
+    #events_sheet.update("A3", formatted_events, value_input_option='USER_ENTERED')
 
 def fetch_updated_at():
     """
@@ -215,6 +197,101 @@ def write_updated_at(results: list, startgg_updated_at):
         formatted_slugs.append([slug, info[0], info[1], info[2], info[3]])
 
     slugs_updated_at.update("A2", formatted_slugs)
+
+def remove_old_events():
+    """
+    Remove all events that are more than old (> 3 weeks passed). This is because:
+    1. The sheet is slow with that many events
+    2. Google sheets has a per-sheet cell cap
+    It may end up being bad to cull these events? IDK.
+    """
+    authorize()
+
+    main_sheet = client.open_by_url(TTS_SHEET)
+    events_sheet = main_sheet.worksheet(EVENTS_SHEET)
+    events = events_sheet.get("A3:S")
+
+    cutoff_period = timedelta(days=21) # 3 weeks for now
+    cutoff_date = datetime.now(ZoneInfo("America/New_York")).date() - cutoff_period
+
+    kept_events = []
+    removed_event_slugs = []
+
+    for row in events:
+        if len(row) == 0:
+            continue
+
+        override_date = row[OVERRIDE_DATE_INDEX].strip()
+        if override_date == "":
+            unparsed_date = row[DATE_INDEX]
+        else:
+            unparsed_date = override_date
+
+        # extra failsafe in case somebody fucks up an override date
+        # maybe a bad idea? idk
+        try:
+            parsed_date = datetime.fromisoformat(unparsed_date).date()
+        except:
+            kept_events.append(row)
+            continue
+
+        # keep classified events. not perfect metric, likely should be changed later
+        # or we have multiple scripts? idk
+        classification = row[CLASSIFICATION_INDEX]
+        if parsed_date < cutoff_date and classification == "":
+            removed_event_slugs.append(row[SLUG_INDEX])
+        else:
+            kept_events.append(row)
+
+    # this is needed
+    for event in kept_events:
+        event[TOURNAMENT_INDEX] = format_event_link(event[TOURNAMENT_INDEX], event[SLUG_INDEX])
+
+    kept_events.sort(key=lambda x: int(x[SCORE_INDEX]), reverse=True)
+    kept_events.sort(key=lambda x: x[DATE_INDEX], reverse=True)
+
+    for i in range(0, len(kept_events)):
+        kept_events.append([''] * 19)
+
+    events_sheet.spreadsheet.values_batch_update({
+        'value_input_option': 'USER_ENTERED',
+        'data': [
+            {'range': f'{events_sheet.title}!B3', 'values': [row[1:2] for row in kept_events]},
+        ],
+    })
+
+    events_sheet.spreadsheet.values_batch_update({
+        'value_input_option': 'RAW',
+        'data': [
+            {'range': f'{events_sheet.title}!A3', 'values': [row[0:1] for row in kept_events]},
+            {'range': f'{events_sheet.title}!C3', 'values': [row[2:] for row in kept_events]},
+        ],
+    })
+
+    slugs_updated_at = main_sheet.worksheet("slugs-updated-at")
+
+    slugs = slugs_updated_at.get("A2:E")
+    
+    slugs_dict = dict()
+    for slug in slugs:
+        if len(slug) < 5:
+            continue
+        slugs_dict[slug[0]] = slug[1:]
+
+    deleted = 0
+    for slug in removed_event_slugs:
+        if slug in slugs_dict:
+            del slugs_dict[slug]
+            deleted += 1
+
+    formatted_slugs = []
+    for slug, info in slugs_dict.items():
+        formatted_slugs.append([slug, info[0], info[1], info[2], info[3]])
+    for i in range(0, deleted):
+        formatted_slugs.append([''] * 5)
+
+    slugs_updated_at.update("A2", formatted_slugs)
+
 
 def fetch_updated_players() -> list:
     """

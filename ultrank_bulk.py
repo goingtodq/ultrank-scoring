@@ -252,7 +252,7 @@ def write_results(results):
     for result in results:
         formatted_result = []
         if isinstance(result, TournamentTieringResult):
-            formatted_result = [result.date.isoformat(), result.tournament, result.activity_state, "", "", "", result.event, result.region.note, result.slug, 
+            formatted_result = [result.date.isoformat(), result.tournament, result.activity_state, result.set_progress, "", "", "", result.event, result.region.note, result.slug, 
                                 str(result.is_invitational), result.score, result.max_potential_score(), "", result.entrants,
                                 str(result.should_count())]
             formatted_result += validate_event(result)
