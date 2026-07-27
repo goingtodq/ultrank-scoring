@@ -256,7 +256,7 @@ def write_results(results):
         formatted_result = []
         if isinstance(result, TournamentTieringResult):
             print(result.date)
-            formatted_result = [result.date.isoformat(tzinfo=timezone.utc), result.event_date.isoformat(tzinfo=timezone.utc), result.tournament, result.activity_state, "", result.set_progress, "", "", "", result.event, result.region.note, result.event_id, result.slug, 
+            formatted_result = [result.date.isoformat().replace("+00:00", ""), result.event_date.isoformat().replace("+00:00", ""), result.tournament, result.activity_state, "", result.set_progress, "", "", "", result.event, result.region.note, result.event_id, result.slug, 
                                 result.is_invitational, result.score, result.max_potential_score(), "", result.entrants,
                                 str(result.should_count())]
             formatted_result += validate_event(result)

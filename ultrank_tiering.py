@@ -33,7 +33,7 @@ ENTRANT_FLOOR = {
     3: 32
 }
 
-NEW_MULT_SYSTEM_DATE = datetime.datetime.fromisoformat('2024-12-16')
+NEW_MULT_SYSTEM_DATE = datetime.datetime.fromisoformat('2024-12-16').replace(tzinfo=datetime.timezone.utc)
 
 ADDRESS_DEBUG = False
 
@@ -598,9 +598,9 @@ class Tournament:
             # We use the tournamne startAt instead of the event startAt.
             # This seems to be more consistently filled out correctly by TOs.
             self.start_time = datetime.datetime.fromtimestamp(
-                self.general_data['event']['tournament']['startAt'])
+                self.general_data['event']['tournament']['startAt'], tz=datetime.timezone.utc)
             self.event_start_time = datetime.datetime.fromtimestamp(
-                self.general_data['event']['startAt'])
+                self.general_data['event']['startAt'], tz=datetime.timezone.utc)
         except Exception as e:
             print(e)
             print(self.general_data)
@@ -1024,9 +1024,9 @@ def read_players():
             points = int(row['Points'])
 
             start_date = datetime.datetime.fromisoformat(
-                row['Start Date']) if row['Start Date'] != '' else None
+                row['Start Date']).replace(tzinfo=datetime.timezone.utc) if row['Start Date'] != '' else None
             end_date = datetime.datetime.fromisoformat(
-                row['End Date']) if row['End Date'] != '' else None
+                row['End Date']).replace(tzinfo=datetime.timezone.utc) if row['End Date'] != '' else None
 
             if id_ not in players:
                 player_value_group = PlayerValueGroup(
@@ -1072,8 +1072,8 @@ def read_regions():
         reader = csv.DictReader(regions_file)
 
         for row in reader:
-            start_date = datetime.datetime.fromisoformat(row['Start Date']) if row['Start Date'] != '' else None
-            end_date = datetime.datetime.fromisoformat(row['End Date']) if row['End Date'] != '' else None
+            start_date = datetime.datetime.fromisoformat(row['Start Date']).replace(tzinfo=datetime.timezone.utc) if row['Start Date'] != '' else None
+            end_date = datetime.datetime.fromisoformat(row['End Date']).replace(tzinfo=datetime.timezone.utc) if row['End Date'] != '' else None
 
             region_value = RegionValue(country_code=row['country_code'], iso2=row['ISO3166-2'], county=row['county'],
                                        city=row['city'], state_district=row['state_district'], jp_postal=row['jp-postal-code'],
