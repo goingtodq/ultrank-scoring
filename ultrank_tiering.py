@@ -33,7 +33,7 @@ ENTRANT_FLOOR = {
     3: 32
 }
 
-NEW_MULT_SYSTEM_DATE = datetime.date.fromisoformat('2024-12-16')
+NEW_MULT_SYSTEM_DATE = datetime.datetime.fromisoformat('2024-12-16')
 
 ADDRESS_DEBUG = False
 
@@ -184,8 +184,9 @@ class PlayerValueGroup:
 
 
 class TournamentTieringResult:
-    def __init__(self, slug, updated_at, score, entrants, set_progress, region, values, dqs, potential, date, eventName, 
+    def __init__(self, event_id, slug, updated_at, score, entrants, set_progress, region, values, dqs, potential, date, event_date, eventName, 
                  tournamentName, tournamentSlug, ownerDiscriminator, activity_state="NO_STATE", is_invitational=False, phases=[], dq_count=-1):
+        self.event_id = event_id
         self.slug = slug
         self.updated_at = updated_at
         self.score = score
@@ -193,6 +194,7 @@ class TournamentTieringResult:
         self.dqs = dqs
         self.potential = potential
         self.date = date
+        self.event_date = event_date
         self.entrants = entrants
         self.set_progress = set_progress
         self.region = region
@@ -470,10 +472,10 @@ class Entrant:
 class Tournament:
     """Stores tournament info/metadata."""
 
-    def __init__(self, event_slug, is_invitational=False, location=True):
+    def __init__(self, event_id, is_invitational=False, location=True):
         """Populates tournament metadata with tournament slug/invitational status."""
 
-        self.event_slug = isolate_slug(event_slug)
+        self.event_id = event_id
         self.is_invitational = is_invitational
         self.tier = None
         self.use_location = location
@@ -490,9 +492,10 @@ class Tournament:
         self.gather_event_progress()
 
     def gather_general_data(self):
-        query, variables = general_query(self.event_slug)
+        query, variables = general_query(self.event_id)
         resp = send_request(query, variables)
         self.general_data = resp['data']
+        self.event_slug = isolate_slug(resp['data']['event']['slug'])
 
     def gather_entrant_counts(self):
         # Check if the event has progressed enough to detect DQs.
@@ -594,8 +597,10 @@ class Tournament:
         try:
             # We use the tournamne startAt instead of the event startAt.
             # This seems to be more consistently filled out correctly by TOs.
-            self.start_time = datetime.date.fromtimestamp(
+            self.start_time = datetime.datetime.fromtimestamp(
                 self.general_data['event']['tournament']['startAt'])
+            self.event_start_time = datetime.datetime.fromtimestamp(
+                self.general_data['event']['startAt'])
         except Exception as e:
             print(e)
             print(self.general_data)
@@ -691,8 +696,8 @@ class Tournament:
             reverse=True, key=lambda p: (p.dqs, p.value.points))
         potential_matches.sort(key=lambda m: (m.dqs, m.tag))
 
-        self.tier = TournamentTieringResult(self.event_slug, self.general_data['event']['updatedAt'], total_score, self.total_entrants, self.set_progress, best_region, valued_participants,
-                                            participants_with_dqs, potential_matches, self.start_time, self.general_data['event']['name'], self.general_data['event']['tournament']['name'],
+        self.tier = TournamentTieringResult(self.event_id, self.event_slug, self.general_data['event']['updatedAt'], total_score, self.total_entrants, self.set_progress, best_region, valued_participants,
+                                            participants_with_dqs, potential_matches, self.start_time, self.event_start_time, self.general_data['event']['name'], self.general_data['event']['tournament']['name'],
                                             self.general_data['event']['tournament']['slug'], self.general_data['event']['tournament']['owner']['discriminator'], self.general_data['event']['state'],
                                             is_invitational=self.is_invitational, phases=[phase['name'] for phase in self.phases], dq_count=self.total_dqs)
 
@@ -791,13 +796,15 @@ def set_progress_query(event_slug, phases):
 
     return query, variables
 
-def general_query(event_slug):
+def general_query(event_id):
     """Generates query to retrieve general tournament information: name, time, location, phases, entrants"""
 
-    query = '''query generalQuery($eventSlug: String!) {
-  event(slug: $eventSlug) {
+    query = '''query generalQuery($eventId: ID!) {
+  event(id: $eventId) {
     name
+    slug
     state
+    startAt
     updatedAt
     tournament {
       name
@@ -836,8 +843,8 @@ def general_query(event_slug):
   }
 }'''
     variables = '''{{
-        "eventSlug": "{}"
-    }}'''.format(event_slug)
+        "eventId": "{}"
+    }}'''.format(event_id)
 
     return query, variables
 
@@ -1016,9 +1023,9 @@ def read_players():
 
             points = int(row['Points'])
 
-            start_date = datetime.date.fromisoformat(
+            start_date = datetime.datetime.fromisoformat(
                 row['Start Date']) if row['Start Date'] != '' else None
-            end_date = datetime.date.fromisoformat(
+            end_date = datetime.datetime.fromisoformat(
                 row['End Date']) if row['End Date'] != '' else None
 
             if id_ not in players:
@@ -1042,9 +1049,9 @@ def read_players():
 
             slug = row['Hex']
 
-            start_date = datetime.date.fromisoformat(
+            start_date = datetime.datetime.fromisoformat(
                 row['Start Date']) if row['Start Date'] != '' else None
-            end_date = datetime.date.fromisoformat(
+            end_date = datetime.datetime.fromisoformat(
                 row['End Date']) if row['End Date'] != '' else None
 
             if id_ not in players:
@@ -1065,8 +1072,8 @@ def read_regions():
         reader = csv.DictReader(regions_file)
 
         for row in reader:
-            start_date = datetime.date.fromisoformat(row['Start Date']) if row['Start Date'] != '' else None
-            end_date = datetime.date.fromisoformat(row['End Date']) if row['End Date'] != '' else None
+            start_date = datetime.datetime.fromisoformat(row['Start Date']) if row['Start Date'] != '' else None
+            end_date = datetime.datetime.fromisoformat(row['End Date']) if row['End Date'] != '' else None
 
             region_value = RegionValue(country_code=row['country_code'], iso2=row['ISO3166-2'], county=row['county'],
                                        city=row['city'], state_district=row['state_district'], jp_postal=row['jp-postal-code'],

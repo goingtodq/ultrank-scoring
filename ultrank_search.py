@@ -38,6 +38,7 @@ def events_updated_at_query(start_time, end_time, page=1, per_page=40):
     }
     nodes {
       events {
+        id
         slug
         state
         updatedAt
@@ -120,12 +121,15 @@ def retrieve_events_updated_at(start_time, end_time):
               break
 
           for tournament in resp['data']['tournaments']['nodes']:
+              if tournament['events'] is None:
+                  continue
+
               try:
                   events = [event for event in tournament['events'] if (
                       event['type'] == 1 and event['videogame']['id'] == 1386 and event['numEntrants'] != None and event['numEntrants'] >= 8)]
 
                   for event in events:
-                      updated[event['slug']] = [event['updatedAt'], event['numEntrants'], event['state']]
+                      updated[str(event['id'])] = [event['updatedAt'], event['numEntrants'], event['state']]
               except Exception as e:
                   print(e)
                   print(tournament)
@@ -163,30 +167,30 @@ def retrieve_events_by_player(start_time, end_time, player):
         page += 1
     return event_slugs
 
-def determine_slugs_to_update(updated_at_tts, updated_at_startgg):
+def determine_events_to_update(updated_at_tts, updated_at_startgg):
     UPDATED_AT_INDEX = 0
     ENTRANTS_INDEX = 1
     ACTIVITY_STATE_INDEX = 2
 
-    slugs = []
-    for slug in updated_at_startgg:
-        if slug not in updated_at_tts:
-            print(f"New event! -- {slug}")
-            slugs.append(slug)
-        elif datetime.fromisoformat(updated_at_tts[slug][UPDATED_AT_INDEX]).timestamp() < updated_at_startgg[slug][UPDATED_AT_INDEX]:
-            print(f"Need to update based on time! -- {slug}")
-            slugs.append(slug)
-        elif updated_at_tts[slug][ENTRANTS_INDEX] != str(updated_at_startgg[slug][ENTRANTS_INDEX]):
-            print(f"Need to update, number of entrants changed from {updated_at_tts[slug][ENTRANTS_INDEX]} to {updated_at_startgg[slug][ENTRANTS_INDEX]} -- {slug}")
-            slugs.append(slug)
-        elif updated_at_tts[slug][ACTIVITY_STATE_INDEX] != str(updated_at_startgg[slug][ACTIVITY_STATE_INDEX]):
-            print(f"Need to update, activity state changed from {updated_at_tts[slug][ACTIVITY_STATE_INDEX]} to {updated_at_startgg[slug][ACTIVITY_STATE_INDEX]} -- {slug}")
-            slugs.append(slug)
-        elif updated_at_startgg[slug][ACTIVITY_STATE_INDEX] == "ACTIVE":
-            print(f"Need to update, active event {updated_at_startgg[slug][ACTIVITY_STATE_INDEX]}")
-            slugs.append(slug)
+    ids = []
+    for id in updated_at_startgg:
+        if id not in updated_at_tts:
+            print(f"New event! -- {id}")
+            ids.append(id)
+        elif datetime.fromisoformat(updated_at_tts[id][UPDATED_AT_INDEX]).timestamp() < updated_at_startgg[id][UPDATED_AT_INDEX]:
+            print(f"Need to update based on time! -- {id}")
+            ids.append(id)
+        elif updated_at_tts[id][ENTRANTS_INDEX] != str(updated_at_startgg[id][ENTRANTS_INDEX]):
+            print(f"Need to update, number of entrants changed from {updated_at_tts[id][ENTRANTS_INDEX]} to {updated_at_startgg[id][ENTRANTS_INDEX]} -- {id}")
+            ids.append(id)
+        elif updated_at_tts[id][ACTIVITY_STATE_INDEX] != str(updated_at_startgg[id][ACTIVITY_STATE_INDEX]):
+            print(f"Need to update, activity state changed from {updated_at_tts[id][ACTIVITY_STATE_INDEX]} to {updated_at_startgg[id][ACTIVITY_STATE_INDEX]} -- {id}")
+            ids.append(id)
+        elif updated_at_startgg[id][ACTIVITY_STATE_INDEX] == "ACTIVE":
+            print(f"Need to update, active event {updated_at_startgg[id][ACTIVITY_STATE_INDEX]}")
+            ids.append(id)
 
-    return slugs
+    return ids
 
 def determine_slugs_to_force_update(players, scan_time, end_time):
     slugs = []
@@ -212,11 +216,11 @@ if __name__ == '__main__':
     print('using start timestamp {} and end timestamp {}'.format(
         str(start_timestamp), str(end_timestamp)))
 
-    slugs_updated_at = fetch_updated_at()
+    sheet_updated_at = fetch_updated_at()
     startgg_updated_at = retrieve_events_updated_at(start_timestamp, end_timestamp)
 
-    # return is a list of slugs
-    events_needing_updates = determine_slugs_to_update(slugs_updated_at, startgg_updated_at)
+    # return is a list of ids (previously slugs)
+    events_needing_updates = determine_events_to_update(sheet_updated_at, startgg_updated_at)
 
     # read from the players list
     # find all events with these players and force add to the events needing updates
@@ -226,11 +230,11 @@ if __name__ == '__main__':
 
     events = list(dict.fromkeys(events_needing_updates))
 
-    results = bulk_score([{'slug': slug, 'invit': False} for slug in events])
+    results = bulk_score([{'id': id, 'invit': False} for id in events])
 
     for result in results:
         print([result.date.isoformat(), result.tournament, result.activity_state, result.set_progress, "", "", "", 
-               result.event, result.region.note, result.slug,  str(result.is_invitational), result.score, 
+               result.event, result.region.note, result.event_id, result.slug,  str(result.is_invitational), result.score, 
                result.max_potential_score(), "", result.entrants, str(result.should_count())])
 
     write_cached_addresses(Addresses().addresses)

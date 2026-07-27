@@ -4,7 +4,7 @@ from sheets_io import write_events
 from datetime import datetime
 from Levenshtein import jaro_winkler
 from startgg_toolkit import send_request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import csv
 import os 
 import re
@@ -109,7 +109,10 @@ def get_admined_tournaments(tournament_slug, day_range=15):
     while True:
         query, variables = admin_query(tournament_slug, page)
         resp = send_request(query, variables, quiet=True)
-        # print(resp)
+        if resp['data']['tournament'] is None:
+            print(resp)
+            return None
+
 
         # Set tournament-specific variables if not set
         if tournament_name == None:
@@ -150,6 +153,10 @@ def get_admined_tournaments(tournament_slug, day_range=15):
 
 def check_potential_weekly(tournamentSlug):
     other_admined_tournaments = get_admined_tournaments(tournamentSlug)
+
+    # Should never logically happen apart from deletion scenarios. Why is this triggered?
+    if other_admined_tournaments is None:
+        return None
 
     base_tournament = other_admined_tournaments[0]
 
@@ -219,29 +226,25 @@ def validate_event(event):
 
     return [used, skip_reason]
 
-def bulk_score(slugs):
-    """Scores multiple slugs, and returns the resultant result."""
+def bulk_score(events):
+    """Scores multiple ids (previously slug), and returns the resultant result."""
 
     # Get values
     results = []
 
-    for slug_obj in slugs:
-        slug = slug_obj['slug']
-        invit = slug_obj['invit']
+    for event in events:
+        id = event['id']
+        invit = event['invit']
 
-        if startgg_slug_regex.fullmatch(slug):
-            print('calculating for slug {}'.format(slug))
+        print('calculating for id {}'.format(id))
 
-            try:
-                t = Tournament(slug, invit)
-                result = t.calculate_tier()
-                results.append(result)
-
-            except Exception as e:
-                print(e)
-                print('catastrophic failure')
-        else:
-            print('skipping slug {}'.format(slug))
+        try:
+            t = Tournament(id, invit)
+            result = t.calculate_tier()
+            results.append(result)
+        except Exception as e:
+            print(e)
+            print('catastrophic failure')
 
     return results
 
@@ -252,8 +255,9 @@ def write_results(results):
     for result in results:
         formatted_result = []
         if isinstance(result, TournamentTieringResult):
-            formatted_result = [result.date.isoformat(), result.tournament, result.activity_state, result.set_progress, "", "", "", result.event, result.region.note, result.slug, 
-                                str(result.is_invitational), result.score, result.max_potential_score(), "", result.entrants,
+            print(result.date)
+            formatted_result = [result.date.isoformat(tzinfo=timezone.utc), result.event_date.isoformat(tzinfo=timezone.utc), result.tournament, result.activity_state, "", result.set_progress, "", "", "", result.event, result.region.note, result.event_id, result.slug, 
+                                result.is_invitational, result.score, result.max_potential_score(), "", result.entrants,
                                 str(result.should_count())]
             formatted_result += validate_event(result)
             formatted_result += [""]

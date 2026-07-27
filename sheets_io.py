@@ -13,18 +13,22 @@ NOMINATIM_SHEET = "nominatim-cache"
 EVENTS_SHEET = "all-events"
 
 DATE_INDEX = 0
-TOURNAMENT_INDEX = 1
-ACTIVITY_STATE_INDEX = 2
-PROGRESS_INDEX = 3
-CLASSIFICATION_INDEX = 4
-OVERRIDE_DATE_INDEX = 5
-NICKNAME_INDEX = 6
-SLUG_INDEX = 9
-SCORE_INDEX = 11
-OVERRIDE_SCORE_INDEX = 13
-JUSTIFICATION_INDEX = 17
-NOTE_INDEX = 18
-EVENTS_COLUMNS = 19
+EVENT_DATE_INDEX = 1
+TOURNAMENT_INDEX = 2
+ACTIVITY_STATE_INDEX = 3
+OVERRIDE_STATE_INDEX = 4
+PROGRESS_INDEX = 5
+CLASSIFICATION_INDEX = 6
+OVERRIDE_DATE_INDEX = 7
+NICKNAME_INDEX = 8
+ID_INDEX = 11
+SLUG_INDEX = 12
+SCORE_INDEX = 14
+OVERRIDE_SCORE_INDEX = 15
+ENTRANTS_INDEX = 18
+JUSTIFICATION_INDEX = 20
+NOTE_INDEX = 21
+EVENTS_COLUMNS = 22
 
 def authorize():
     global client
@@ -69,26 +73,26 @@ def create_events_dict(tts_events, updated_events):
         if len(event) == 0:
             continue
 
-        events_dict[event[SLUG_INDEX]] = event[0:SLUG_INDEX] + event[SLUG_INDEX + 1:]
+        events_dict[event[ID_INDEX]] = event[0:ID_INDEX] + event[ID_INDEX + 1:]
 
         # We need to be using full rows. Otherwise things get messed up.
-        while len(events_dict[event[SLUG_INDEX]]) < EVENTS_COLUMNS - 1:
-            events_dict[event[SLUG_INDEX]].append('')
+        while len(events_dict[event[ID_INDEX]]) < EVENTS_COLUMNS - 1:
+            events_dict[event[ID_INDEX]].append('')
     
 
     for event in updated_events:
-        if event[SLUG_INDEX] in events_dict:
-            current_event = events_dict[event[SLUG_INDEX]]
+        if event[ID_INDEX] in events_dict:
+            current_event = events_dict[event[ID_INDEX]]
 
             # Override purple fields (ex: nickname)
             for index, field in enumerate(current_event):
-                if index in [CLASSIFICATION_INDEX, OVERRIDE_DATE_INDEX, NICKNAME_INDEX, OVERRIDE_SCORE_INDEX - 1, NOTE_INDEX - 1]:
-                    event[index + 1 if index >= SLUG_INDEX else index] = field
+                if index in [CLASSIFICATION_INDEX, OVERRIDE_STATE_INDEX, OVERRIDE_DATE_INDEX, NICKNAME_INDEX, OVERRIDE_SCORE_INDEX - 1, NOTE_INDEX - 1]:
+                    event[index + 1 if index >= ID_INDEX else index] = field
 
         if event[JUSTIFICATION_INDEX] == None:
             event[JUSTIFICATION_INDEX] = ''
 
-        events_dict[event[SLUG_INDEX]] = event[0:SLUG_INDEX] + event[SLUG_INDEX + 1:]
+        events_dict[event[ID_INDEX]] = event[0:ID_INDEX] + event[ID_INDEX + 1:]
 
     return events_dict
 
@@ -107,7 +111,7 @@ def format_classification(classification):
         classification = "RANKED"
     elif classification == "U" or classification == "UNRANKED":
         classification = "UNRANKED"
-    return classification
+    return classification.strip()
 
 def write_events(data):
     """
@@ -118,13 +122,22 @@ def write_events(data):
     main_sheet = client.open_by_url(TTS_SHEET)
     events_sheet = main_sheet.worksheet(EVENTS_SHEET)
 
-    events = events_sheet.get("A3:S")
+    events = events_sheet.get("A3:V")
     events_dict = create_events_dict(events, data)
 
     formatted_events = []
-    for slug, event in events_dict.items():
-        formatted_events.append(event[0:SLUG_INDEX] + [slug] + event[SLUG_INDEX:])
-        formatted_events[-1][TOURNAMENT_INDEX] = format_event_link(formatted_events[-1][TOURNAMENT_INDEX], slug)
+    for id, event in events_dict.items():
+        formatted_events.append(event[0:ID_INDEX] + [int(id)] + event[ID_INDEX:])
+
+        # recast (due to raw... annoying)
+        formatted_events[-1][PROGRESS_INDEX] = float(formatted_events[-1][PROGRESS_INDEX])
+        formatted_events[-1][SCORE_INDEX] = int(formatted_events[-1][SCORE_INDEX])
+        try:
+            formatted_events[-1][OVERRIDE_SCORE_INDEX] = int(formatted_events[-1][OVERRIDE_SCORE_INDEX])
+        except ValueError:
+            pass
+
+        formatted_events[-1][TOURNAMENT_INDEX] = format_event_link(formatted_events[-1][TOURNAMENT_INDEX], formatted_events[-1][SLUG_INDEX])
         formatted_events[-1][CLASSIFICATION_INDEX] = format_classification(formatted_events[-1][CLASSIFICATION_INDEX])
 
     formatted_events.sort(key=lambda x: int(x[SCORE_INDEX]), reverse=True)
@@ -134,15 +147,15 @@ def write_events(data):
     events_sheet.spreadsheet.values_batch_update({
         'value_input_option': 'USER_ENTERED',
         'data': [
-            {'range': f'{events_sheet.title}!B3', 'values': [row[1:2] for row in formatted_events]},
+            {'range': f'{events_sheet.title}!C3', 'values': [row[2:3] for row in formatted_events]},
         ],
     })
 
     events_sheet.spreadsheet.values_batch_update({
         'value_input_option': 'RAW',
         'data': [
-            {'range': f'{events_sheet.title}!A3', 'values': [row[0:1] for row in formatted_events]},
-            {'range': f'{events_sheet.title}!C3', 'values': [row[2:] for row in formatted_events]},
+            {'range': f'{events_sheet.title}!A3', 'values': [row[0:2] for row in formatted_events]},
+            {'range': f'{events_sheet.title}!D3', 'values': [row[3:] for row in formatted_events]},
         ],
     })
 
@@ -154,7 +167,7 @@ def fetch_updated_at():
     """
     authorize()
     main_sheet = client.open_by_url(TTS_SHEET)
-    updated_at_sheet = main_sheet.worksheet("slugs-updated-at")
+    updated_at_sheet = main_sheet.worksheet("events-updated-at")
     slugs = updated_at_sheet.get("A2:E")
 
     formatted_slugs = dict()
@@ -172,29 +185,29 @@ def write_updated_at(results: list, startgg_updated_at):
     authorize()
 
     main_sheet = client.open_by_url(TTS_SHEET)
-    slugs_updated_at = main_sheet.worksheet("slugs-updated-at")
+    slugs_updated_at = main_sheet.worksheet("events-updated-at")
 
-    slugs = slugs_updated_at.get("A2:E")
+    events = slugs_updated_at.get("A2:E")
     
-    slugs_dict = dict()
-    for slug in slugs:
-        if len(slug) < 5:
+    events_dict = dict()
+    for event in events:
+        if len(event) < 5:
             continue
-        slugs_dict[slug[0]] = slug[1:]
+        events_dict[event[0]] = event[1:]
 
     for result in results:
-        slugs_dict[result.slug] = [datetime.fromtimestamp(result.updated_at).isoformat(),
-                                   datetime.now(ZoneInfo("America/New_York")).isoformat(),
+        events_dict[result.event_id] = [datetime.fromtimestamp(result.updated_at).isoformat(),
+                                   datetime.now(ZoneInfo("UTC")).isoformat(),
                                    result.entrants,
                                    result.activity_state]
         
     for key, data in startgg_updated_at.items():
-        if key in slugs_dict:
-            slugs_dict[key][2] = data[1]
+        if key in events_dict:
+            events_dict[key][2] = data[1]
 
     formatted_slugs = []
-    for slug, info in slugs_dict.items():
-        formatted_slugs.append([slug, info[0], info[1], info[2], info[3]])
+    for id, info in events_dict.items():
+        formatted_slugs.append([id, info[0], info[1], info[2], info[3]])
 
     slugs_updated_at.update("A2", formatted_slugs)
 
@@ -209,13 +222,13 @@ def remove_old_events():
 
     main_sheet = client.open_by_url(TTS_SHEET)
     events_sheet = main_sheet.worksheet(EVENTS_SHEET)
-    events = events_sheet.get("A3:S")
+    events = events_sheet.get("A3:V")
 
     cutoff_period = timedelta(days=21) # 3 weeks for now
-    cutoff_date = datetime.now(ZoneInfo("America/New_York")).date() - cutoff_period
+    cutoff_date = datetime.now(ZoneInfo("UTC")).date() - cutoff_period
 
     kept_events = []
-    removed_event_slugs = []
+    removed_event_ids = []
 
     for row in events:
         if len(row) == 0:
@@ -239,7 +252,7 @@ def remove_old_events():
         # or we have multiple scripts? idk
         classification = row[CLASSIFICATION_INDEX]
         if parsed_date < cutoff_date and classification == "":
-            removed_event_slugs.append(row[SLUG_INDEX])
+            removed_event_ids.append(row[ID_INDEX])
         else:
             kept_events.append(row)
 
@@ -250,25 +263,25 @@ def remove_old_events():
     kept_events.sort(key=lambda x: int(x[SCORE_INDEX]), reverse=True)
     kept_events.sort(key=lambda x: x[DATE_INDEX], reverse=True)
 
-    for i in range(0, len(kept_events)):
-        kept_events.append([''] * 19)
+    for i in range(0, len(removed_event_ids)):
+        kept_events.append([''] * EVENTS_COLUMNS)
 
     events_sheet.spreadsheet.values_batch_update({
         'value_input_option': 'USER_ENTERED',
         'data': [
-            {'range': f'{events_sheet.title}!B3', 'values': [row[1:2] for row in kept_events]},
+            {'range': f'{events_sheet.title}!C3', 'values': [row[2:3] for row in kept_events]},
         ],
     })
 
     events_sheet.spreadsheet.values_batch_update({
         'value_input_option': 'RAW',
         'data': [
-            {'range': f'{events_sheet.title}!A3', 'values': [row[0:1] for row in kept_events]},
-            {'range': f'{events_sheet.title}!C3', 'values': [row[2:] for row in kept_events]},
+            {'range': f'{events_sheet.title}!A3', 'values': [row[0:2] for row in kept_events]},
+            {'range': f'{events_sheet.title}!D3', 'values': [row[3:] for row in kept_events]},
         ],
     })
 
-    slugs_updated_at = main_sheet.worksheet("slugs-updated-at")
+    slugs_updated_at = main_sheet.worksheet("events-updated-at")
 
     slugs = slugs_updated_at.get("A2:E")
     
@@ -279,9 +292,9 @@ def remove_old_events():
         slugs_dict[slug[0]] = slug[1:]
 
     deleted = 0
-    for slug in removed_event_slugs:
-        if slug in slugs_dict:
-            del slugs_dict[slug]
+    for id in removed_event_ids:
+        if id in slugs_dict:
+            del slugs_dict[id]
             deleted += 1
 
     formatted_slugs = []
@@ -345,4 +358,4 @@ def write_script_endtime():
     authorize()
     main_sheet = client.open_by_url(TTS_SHEET)
     events_sheet = main_sheet.worksheet(EVENTS_SHEET)
-    events_sheet.update_acell("A1", "Last update by script: " + datetime.now(ZoneInfo("America/New_York")).replace(tzinfo=None).isoformat(timespec="seconds") + " (ET)")
+    events_sheet.update_acell("A1", "Last update by script: " + datetime.now(ZoneInfo("UTC")).replace(tzinfo=None).isoformat(timespec="seconds") + " (UTC)")
