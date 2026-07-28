@@ -113,7 +113,7 @@ def retrieve_events_updated_at(start_time, end_time):
       page = 0
       while True:
           query, variables = events_updated_at_query(slice[0], slice[1], page=page)
-          resp = send_request(query, variables, quiet=True)
+          resp = send_request(query, variables)
 
           # To avoid crashes... should ideally never be triggered.
           if resp['data']['tournaments'] is None:
@@ -147,7 +147,7 @@ def retrieve_events_by_player(start_time, end_time, player):
 
     while True:
         query, variables = player_events_query(player, page)
-        resp = send_request(query, variables, quiet=True)      
+        resp = send_request(query, variables)      
         player_events = resp['data']['player']['user']['events']['nodes']
 
         try:

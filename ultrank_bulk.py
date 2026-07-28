@@ -108,7 +108,7 @@ def get_admined_tournaments(tournament_slug, day_range=15):
 
     while True:
         query, variables = admin_query(tournament_slug, page)
-        resp = send_request(query, variables, quiet=True)
+        resp = send_request(query, variables)
         if resp['data']['tournament'] is None:
             print(resp)
             return None
