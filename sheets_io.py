@@ -1,7 +1,7 @@
 import os
 import json
 import gspread
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from google.oauth2.service_account import Credentials
 from zoneinfo import ZoneInfo
 
@@ -197,7 +197,7 @@ def write_updated_at(results: list, startgg_updated_at):
         events_dict[event[0]] = event[1:]
 
     for result in results:
-        events_dict[result.event_id] = [datetime.fromtimestamp(result.updated_at).isoformat(),
+        events_dict[result.event_id] = [datetime.fromtimestamp(result.updated_at, tz=timezone.utc).isoformat(),
                                    datetime.now(ZoneInfo("UTC")).isoformat(),
                                    result.entrants,
                                    result.activity_state]

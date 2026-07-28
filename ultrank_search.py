@@ -5,7 +5,7 @@ import dateparser
 import csv
 import os
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from ultrank_bulk import bulk_score, write_results
 from ultrank_tiering import Addresses
 from sheets_io import fetch_updated_at, write_updated_at, write_cached_addresses, fetch_updated_players, write_players, write_script_endtime
@@ -177,7 +177,7 @@ def determine_events_to_update(updated_at_tts, updated_at_startgg):
         if id not in updated_at_tts:
             print(f"New event! -- {id}")
             ids.append(id)
-        elif datetime.fromisoformat(updated_at_tts[id][UPDATED_AT_INDEX]).timestamp() < updated_at_startgg[id][UPDATED_AT_INDEX]:
+        elif datetime.fromisoformat(updated_at_tts[id][UPDATED_AT_INDEX]).replace(tzinfo=timezone.utc).timestamp() < updated_at_startgg[id][UPDATED_AT_INDEX]:
             print(f"Need to update based on time! -- {id}")
             ids.append(id)
         elif updated_at_tts[id][ENTRANTS_INDEX] != str(updated_at_startgg[id][ENTRANTS_INDEX]):
