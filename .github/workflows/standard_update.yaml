@@ -3,6 +3,7 @@ name: Standard Calendar Sheet Update
 on:
   schedule:
     - cron: "0 * * * *"
+  workflow_dispatch:
 
 concurrency:
   group: sheet-updaters
