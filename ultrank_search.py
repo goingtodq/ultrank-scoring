@@ -187,7 +187,7 @@ def determine_events_to_update(updated_at_tts, updated_at_startgg):
             print(f"Need to update, activity state changed from {updated_at_tts[id][ACTIVITY_STATE_INDEX]} to {updated_at_startgg[id][ACTIVITY_STATE_INDEX]} -- {id}")
             ids.append(id)
         elif updated_at_startgg[id][ACTIVITY_STATE_INDEX] == "ACTIVE":
-            print(f"Need to update, active event {updated_at_startgg[id][ACTIVITY_STATE_INDEX]}")
+            print(f"Need to update, active event {updated_at_startgg[id][ACTIVITY_STATE_INDEX]} -- {id}")
             ids.append(id)
 
     return ids
@@ -231,11 +231,6 @@ if __name__ == '__main__':
     events = list(dict.fromkeys(events_needing_updates))
 
     results = bulk_score([{'id': id, 'invit': False} for id in events])
-
-    for result in results:
-        print([result.date.isoformat(), result.tournament, result.activity_state, result.set_progress, "", "", "", 
-               result.event, result.region.note, result.event_id, result.slug,  str(result.is_invitational), result.score, 
-               result.max_potential_score(), "", result.entrants, str(result.should_count())])
 
     write_cached_addresses(Addresses().addresses)
     write_results(results)
