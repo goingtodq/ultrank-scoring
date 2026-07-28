@@ -1,8 +1,6 @@
 name: Standard Calendar Sheet Update
 
 on:
-  schedule:
-    - cron: "51 * * * *"
   workflow_dispatch:
 
 concurrency:
