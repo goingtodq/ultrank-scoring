@@ -62,7 +62,7 @@ def send_request(query, variables, quiet=False):
             tries += 1
             if not quiet:
                 print(f'try {tries}: requests failure... sleeping then trying again... ', end='', flush=True)
-                print(e)
+                #print(e)
             time.sleep(60)
             if not quiet:
                 print('retrying')
