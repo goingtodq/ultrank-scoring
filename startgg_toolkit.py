@@ -4,12 +4,11 @@
 import requests 
 import re 
 import time
+import os
 
 SMASH_GG_ENDPOINT = 'https://api.smash.gg/gql/alpha'
 
-ggkeyfile = open('smashgg.key')
-ggkey = ggkeyfile.read()
-ggkeyfile.close()
+ggkey = os.environ["STARTGG_API_KEY"]
 ggheader = {"Authorization": "Bearer " + ggkey.rstrip()}
 
 startgg_slug_regex = re.compile(
