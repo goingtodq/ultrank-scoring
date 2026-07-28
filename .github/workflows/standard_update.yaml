@@ -1,0 +1,37 @@
+name: Standard Calendar Sheet Update
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+
+concurrency:
+  group: sheet-updaters
+  cancel-in-progress: false
+
+jobs:
+  update-sheet:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13.7'
+
+      - name: Install Requirements
+        run: python3 -m pip install -r ultrank_requirements.txt
+      
+      # Unsure exactly what numbers to put here.
+      - name: Generate input.txt file with dates
+        run: |
+          START_DATE=$(date -u -d "-3 days" +%Y-%m-%d)
+          END_DATE=$(date -u -d "+6 months" +%Y-%m-%d)
+          printf "%s\n%s\n" "$START_DATE" "$END_DATE" > input.txt
+
+      - name: Run script
+        env:
+          STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
+          SHEETS_API_KEY: ${{ secrets.SHEETS_API_KEY }}
+        run: python3 ultrank_search.py < input.txt
