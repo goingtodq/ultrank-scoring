@@ -4,13 +4,12 @@
 import requests 
 import re 
 import time
+import os
 
 SMASH_GG_ENDPOINT = 'https://api.smash.gg/gql/alpha'
 
-ggkeyfile = open('smashgg.key')
-ggkey = ggkeyfile.read()
-ggkeyfile.close()
-ggheader = {"Authorization": "Bearer " + ggkey}
+ggkey = os.environ["STARTGG_API_KEY"]
+ggheader = {"Authorization": "Bearer " + ggkey.rstrip()}
 
 startgg_slug_regex = re.compile(
     r'tournament\/[a-z0-9\-_]+\/events?\/[a-z0-9\-_]+')
@@ -20,6 +19,8 @@ class InvalidEventUrlException(Exception):
     pass
 
 def send_request(query, variables, quiet=False):
+    time.sleep(0.75) # Try to avoid rate limiting issues.
+    print("Send Request")
     # Sends a request to the startgg server.
     progress = False
 
