@@ -35,4 +35,4 @@ jobs:
         env:
           STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
           SHEETS_API_KEY: ${{ secrets.SHEETS_API_KEY }}
-        run: python3 ultrank_search.py < input.txt
+        run: python3 -u ultrank_search.py < input.txt
