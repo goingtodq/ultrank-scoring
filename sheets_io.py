@@ -24,7 +24,8 @@ NICKNAME_INDEX = 8
 ID_INDEX = 11
 SLUG_INDEX = 12
 SCORE_INDEX = 14
-OVERRIDE_SCORE_INDEX = 15
+ALT_SCORE_INDEX = 15
+OVERRIDE_SCORE_INDEX = 16
 ENTRANTS_INDEX = 17
 JUSTIFICATION_INDEX = 20
 NOTE_INDEX = 21
@@ -132,6 +133,7 @@ def write_events(data):
         # recast (due to raw... annoying)
         formatted_events[-1][PROGRESS_INDEX] = float(formatted_events[-1][PROGRESS_INDEX])
         formatted_events[-1][SCORE_INDEX] = int(formatted_events[-1][SCORE_INDEX])
+        formatted_events[-1][ALT_SCORE_INDEX] = int(formatted_events[-1][ALT_SCORE_INDEX])
         try:
             formatted_events[-1][OVERRIDE_SCORE_INDEX] = int(formatted_events[-1][OVERRIDE_SCORE_INDEX])
         except ValueError:
