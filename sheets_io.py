@@ -25,7 +25,7 @@ ID_INDEX = 11
 SLUG_INDEX = 12
 SCORE_INDEX = 14
 OVERRIDE_SCORE_INDEX = 15
-ENTRANTS_INDEX = 18
+ENTRANTS_INDEX = 17
 JUSTIFICATION_INDEX = 20
 NOTE_INDEX = 21
 EVENTS_COLUMNS = 22
@@ -136,6 +136,7 @@ def write_events(data):
             formatted_events[-1][OVERRIDE_SCORE_INDEX] = int(formatted_events[-1][OVERRIDE_SCORE_INDEX])
         except ValueError:
             pass
+        formatted_events[-1][ENTRANTS_INDEX] = int(formatted_events[-1][ENTRANTS_INDEX])
 
         formatted_events[-1][TOURNAMENT_INDEX] = format_event_link(formatted_events[-1][TOURNAMENT_INDEX], formatted_events[-1][SLUG_INDEX])
         formatted_events[-1][CLASSIFICATION_INDEX] = format_classification(formatted_events[-1][CLASSIFICATION_INDEX])
