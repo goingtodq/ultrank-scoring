@@ -176,6 +176,10 @@ def validate_event(event):
     used = False
     skip_reason = None
 
+    # No online events are valid.
+    if event.is_online:
+        return [used, "Online Event"]
+
     for skip in skip_weekly_check:
         if skip.lower() in event.event.lower():
             return [True, 'skip_weekly_check, matched: ' + skip.lower()]
@@ -255,7 +259,8 @@ def write_results(results):
     for result in results:
         formatted_result = []
         if isinstance(result, TournamentTieringResult):
-            formatted_result = [result.date.isoformat().replace("+00:00", ""), result.event_date.isoformat().replace("+00:00", ""), result.tournament, result.activity_state, "", result.set_progress, "", "", "", result.event, result.region.note, result.event_id, result.slug, 
+            formatted_result = [result.date.isoformat().replace("+00:00", ""), result.event_date.isoformat().replace("+00:00", ""), result.tournament, result.activity_state, 
+                                "", result.is_online, result.set_progress, "", "", "", result.event, result.region.note, result.event_id, result.slug, 
                                 result.is_invitational, result.score, result.max_potential_score(), "", result.entrants,
                                 str(result.should_count())]
             formatted_result += validate_event(result)

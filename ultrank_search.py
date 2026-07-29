@@ -26,7 +26,6 @@ def events_updated_at_query(start_time, end_time, page=1, per_page=40):
       page: $pageNum,
       perPage: $perPage,
       filter: {
-        hasOnlineEvents: false,
         videogameIds: [1386],
         afterDate: $startTime,
         beforeDate: $endTime
@@ -81,7 +80,6 @@ def player_events_query(player_id, page=1, per_page=490):
           updatedAt
           type
           numEntrants
-          isOnline
           tournament {
             startAt
           }
@@ -152,7 +150,7 @@ def retrieve_events_by_player(start_time, end_time, player):
 
         try:
             events = [event for event in player_events if (
-                event['type'] == 1 and not event['isOnline'] 
+                event['type'] == 1
                 and start_time <= event['tournament']['startAt'] and event['tournament']['startAt'] <= end_time 
                 and event['numEntrants'] != None and event['numEntrants'] >= 8)]
             for event in events:

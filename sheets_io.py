@@ -17,19 +17,19 @@ EVENT_DATE_INDEX = 1
 TOURNAMENT_INDEX = 2
 ACTIVITY_STATE_INDEX = 3
 OVERRIDE_STATE_INDEX = 4
-PROGRESS_INDEX = 5
-CLASSIFICATION_INDEX = 6
-OVERRIDE_DATE_INDEX = 7
-NICKNAME_INDEX = 8
-ID_INDEX = 11
-SLUG_INDEX = 12
-SCORE_INDEX = 14
-ALT_SCORE_INDEX = 15
-OVERRIDE_SCORE_INDEX = 16
-ENTRANTS_INDEX = 17
-JUSTIFICATION_INDEX = 20
-NOTE_INDEX = 21
-EVENTS_COLUMNS = 22
+PROGRESS_INDEX = 6
+CLASSIFICATION_INDEX = 7
+OVERRIDE_DATE_INDEX = 8
+NICKNAME_INDEX = 9
+ID_INDEX = 12
+SLUG_INDEX = 13
+SCORE_INDEX = 15
+ALT_SCORE_INDEX = 16
+OVERRIDE_SCORE_INDEX = 17
+ENTRANTS_INDEX = 18
+JUSTIFICATION_INDEX = 21
+NOTE_INDEX = 22
+EVENTS_COLUMNS = 23
 
 def authorize():
     global client
@@ -123,7 +123,7 @@ def write_events(data):
     main_sheet = client.open_by_url(TTS_SHEET)
     events_sheet = main_sheet.worksheet(EVENTS_SHEET)
 
-    events = events_sheet.get("A3:V")
+    events = events_sheet.get("A3:W")
     events_dict = create_events_dict(events, data)
 
     formatted_events = []
@@ -225,7 +225,7 @@ def remove_old_events():
 
     main_sheet = client.open_by_url(TTS_SHEET)
     events_sheet = main_sheet.worksheet(EVENTS_SHEET)
-    events = events_sheet.get("A3:V")
+    events = events_sheet.get("A3:W")
 
     cutoff_period = timedelta(days=21) # 3 weeks for now
     cutoff_date = datetime.now(ZoneInfo("UTC")).date() - cutoff_period

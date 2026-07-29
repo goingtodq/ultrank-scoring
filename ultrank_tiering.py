@@ -184,10 +184,11 @@ class PlayerValueGroup:
 
 
 class TournamentTieringResult:
-    def __init__(self, event_id, slug, updated_at, score, entrants, set_progress, region, values, dqs, potential, date, event_date, eventName, 
+    def __init__(self, event_id, slug, is_online, updated_at, score, entrants, set_progress, region, values, dqs, potential, date, event_date, eventName, 
                  tournamentName, tournamentSlug, ownerDiscriminator, activity_state="NO_STATE", is_invitational=False, phases=[], dq_count=-1):
         self.event_id = event_id
         self.slug = slug
+        self.is_online = is_online
         self.updated_at = updated_at
         self.score = score
         self.values = values
@@ -496,6 +497,7 @@ class Tournament:
         resp = send_request(query, variables)
         self.general_data = resp['data']
         self.event_slug = isolate_slug(resp['data']['event']['slug'])
+        self.is_online = self.general_data['event']['isOnline']
 
     def gather_entrant_counts(self):
         # Check if the event has progressed enough to detect DQs.
@@ -553,6 +555,10 @@ class Tournament:
         self.set_progress = completed / total if total > 0 else 0
 
     def gather_location_info(self):
+        if self.is_online:
+            self.address = None
+            return None
+        
         geo = Nominatim(user_agent='https://github.com/goingtodq/ultrank-scoring (iamgoingtodq11@gmail.com)', timeout=10)
 
         try:
@@ -616,16 +622,20 @@ class Tournament:
         total_score = 0
 
         # Entrant score
-        best_match = 0
-        best_region = None
+        if not self.is_online:
+            best_match = 0
+            best_region = None
 
-        for region in region_mults:
-            match = region.match(self.address, time=self.start_time)
-            if ADDRESS_DEBUG and match != 0:
-                print('{} {}'.format(match, str(region)))
-            if match > best_match:
-                best_region = region
-                best_match = match
+            for region in region_mults:
+                match = region.match(self.address, time=self.start_time)
+                if ADDRESS_DEBUG and match != 0:
+                    print('{} {}'.format(match, str(region)))
+                if match > best_match:
+                    best_region = region
+                    best_match = match
+        else:
+            # Online events are given multiplier 1 for now
+            best_region = RegionValue(multiplier=1, note="Online")
 
         if self.start_time > NEW_MULT_SYSTEM_DATE:
             total_score += self.total_entrants
@@ -696,10 +706,27 @@ class Tournament:
             reverse=True, key=lambda p: (p.dqs, p.value.points))
         potential_matches.sort(key=lambda m: (m.dqs, m.tag))
 
-        self.tier = TournamentTieringResult(self.event_id, self.event_slug, self.general_data['event']['updatedAt'], total_score, self.total_entrants, self.set_progress, best_region, valued_participants,
-                                            participants_with_dqs, potential_matches, self.start_time, self.event_start_time, self.general_data['event']['name'], self.general_data['event']['tournament']['name'],
-                                            self.general_data['event']['tournament']['slug'], self.general_data['event']['tournament']['owner']['discriminator'], self.general_data['event']['state'],
-                                            is_invitational=self.is_invitational, phases=[phase['name'] for phase in self.phases], dq_count=self.total_dqs)
+        self.tier = TournamentTieringResult(event_id=self.event_id, 
+                                            slug=self.event_slug, 
+                                            is_online=self.is_online, 
+                                            updated_at=self.general_data['event']['updatedAt'], 
+                                            score=total_score, 
+                                            entrants=self.total_entrants, 
+                                            set_progress=self.set_progress, 
+                                            region=best_region, 
+                                            values=valued_participants,
+                                            dqs=participants_with_dqs, 
+                                            potential=potential_matches, 
+                                            date=self.start_time, 
+                                            event_date=self.event_start_time, 
+                                            eventName=self.general_data['event']['name'], 
+                                            tournamentName=self.general_data['event']['tournament']['name'],
+                                            tournamentSlug=self.general_data['event']['tournament']['slug'], 
+                                            ownerDiscriminator=self.general_data['event']['tournament']['owner']['discriminator'], 
+                                            activity_state=self.general_data['event']['state'],
+                                            is_invitational=self.is_invitational, 
+                                            phases=[phase['name'] for phase in self.phases], 
+                                            dq_count=self.total_dqs)
 
         return self.tier
 
@@ -806,6 +833,7 @@ def general_query(event_id):
     state
     startAt
     updatedAt
+    isOnline
     tournament {
       name
       startAt
