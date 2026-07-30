@@ -361,4 +361,4 @@ def write_script_endtime():
     authorize()
     main_sheet = client.open_by_url(TTS_SHEET)
     events_sheet = main_sheet.worksheet(EVENTS_SHEET)
-    events_sheet.update_acell("A1", "Last update by script: " + datetime.now(ZoneInfo("UTC")).replace(tzinfo=None).isoformat(timespec="seconds") + " (UTC)")
+    events_sheet.update_acell("A1", "Last update by script: " + datetime.now(ZoneInfo("UTC")).replace(tzinfo=None).isoformat(timespec="seconds"))
