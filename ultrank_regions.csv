@@ -3,7 +3,7 @@ Baja California,1,Mexico,mx,MX-BCN,,,,,,2023-07-24
 Baja California,1,Mexico,mx,MX-BCS,,,,,,2023-07-24
 Baja California,1,Mexico,mx,MX-BCN,,,,,2025-12-15,
 Baja California,1,Mexico,mx,MX-BCS,,,,,2025-12-15,
-British Columbia,1,Canada,ca,CA-BC,,,,,,
+British Columbia,1,Canada,ca,CA-BC,,,,,,2026-07-13
 Central France,1,France,fr,FR-BFC,,,,,2024-12-16,
 Central France,1,France,fr,FR-CVL,,,,,2024-12-16,
 Central France,1,France,fr,FR-IDF,,,,,2024-12-16,
@@ -157,8 +157,8 @@ MD/VA,1,United States,us,US-WV,Jefferson County,,,,2023-07-24,2024-12-16
 MD/VA,1,United States,us,US-WV,Morgan County,,,,2023-07-24,2024-12-16
 MD/VA,1,United States,us,US-WV,Pendleton County,,,,2023-07-24,2024-12-16
 NorCal,1,United States,us,US-CA,,,,,2023-07-24,2024-12-16
-Northeast France,1,France,fr,FR-GES,,,,,2024-12-16,
-Northeast France,1,France,fr,FR-HDF,,,,,2024-12-16,
+Northeast France,1,France,fr,FR-GES,,,,,2024-12-16,2026-07-13
+Northeast France,1,France,fr,FR-HDF,,,,,2024-12-16,2026-07-13
 Northwest France,1,France,fr,FR-BRE,,,,,2024-12-16,2025-07-07
 Northwest France,1,France,fr,FR-NOR,,,,,2024-12-16,2025-07-07
 Northwest France,1,France,fr,FR-PDL,,,,,2024-12-16,2025-07-07
@@ -213,6 +213,7 @@ Southwest,1,United States,us,US-TX,Winkler County,,,,2023-07-24,2024-07-16
 Southwest,1,United States,us,US-UT,,,,,2023-07-24,2024-07-16
 Texas,1,United States,us,US-LA,,,,,2023-07-24,2023-12-18
 Texas,1,United States,us,US-TX,,,,,2023-07-24,2025-12-15
+Texas,1,United States,us,US-TX,,,,,2026-07-13,
 Tristate,1,United States,us,US-NY,Bronx County,,,,,2023-07-24
 Tristate,1,United States,us,US-NY,Kings County,,,,,2023-07-24
 Tristate,1,United States,us,US-NY,Nassau County,,,,,2023-07-24
@@ -248,6 +249,7 @@ Austria,2,Austria,at,,,,,,,2024-12-16
 Baja California,2,Mexico,mx,MX-BCN,,,,,2023-07-24,2025-12-15
 Baja California,2,Mexico,mx,MX-BCS,,,,,2023-07-24,2025-12-15
 Belgium,2,Belgium,be,,,,,,,2024-07-16
+British Columbia,2,Canada,ca,CA-BC,,,,,2026-07-13,
 Carolinas,2,United States,us,US-NC,,,,,,2023-07-24
 Carolinas,2,United States,us,US-SC,,,,,,2023-07-24
 Carolinas,2,United States,us,US-NC,,,,,2023-07-24,
@@ -284,6 +286,7 @@ East Mexico,2,Mexico,mx,MX-HID,,,,,,2023-07-24
 East Mexico,2,Mexico,mx,MX-PUE,,,,,,2023-07-24
 East Mexico,2,Mexico,mx,MX-TLA,,,,,,2023-07-24
 East Mexico,2,Mexico,mx,MX-VER,,,,,,2023-07-24
+El Salvador,2,El Salvador,sv,,,,,,2026-07-13,
 Florida,2,United States,us,US-FL,,,,,2025-12-15,
 Georgia,2,United States,us,US-GA,,,,,2024-07-16,
 Georgia,2,United States,us,US-SC,Aiken County,,,,2024-07-16,
@@ -448,13 +451,13 @@ Heartland South,2,United States,us,US-KS,Washington County,,,,2024-07-16,
 Heartland South,2,United States,us,US-KS,Wyandotte County,,,,2024-07-16,
 Heartland South,2,United States,us,US-MO,,,,,2024-07-16,
 Heartland South,2,United States,us,US-NE,,,,,2024-07-16,
-Hokkaido,2,Japan,jp,,,,,00,2023-07-24,
-Hokkaido,2,Japan,jp,,,,,04,2023-07-24,
-Hokkaido,2,Japan,jp,,,,,05,2023-07-24,
-Hokkaido,2,Japan,jp,,,,,06,2023-07-24,
-Hokkaido,2,Japan,jp,,,,,07,2023-07-24,
-Hokkaido,2,Japan,jp,,,,,08,2023-07-24,
-Hokkaido,2,Japan,jp,,,,,09,2023-07-24,
+Hokkaido,2,Japan,jp,,,,,00,2023-07-24,2026-07-13
+Hokkaido,2,Japan,jp,,,,,04,2023-07-24,2026-07-13
+Hokkaido,2,Japan,jp,,,,,05,2023-07-24,2026-07-13
+Hokkaido,2,Japan,jp,,,,,06,2023-07-24,2026-07-13
+Hokkaido,2,Japan,jp,,,,,07,2023-07-24,2026-07-13
+Hokkaido,2,Japan,jp,,,,,08,2023-07-24,2026-07-13
+Hokkaido,2,Japan,jp,,,,,09,2023-07-24,2026-07-13
 Inland/Gulf Southeast,2,United States,us,US-AL,,,,,,2023-07-24
 Inland/Gulf Southeast,2,United States,us,US-FL,Escambia County,,,,,2023-07-24
 Inland/Gulf Southeast,2,United States,us,US-FL,Okaloosa County,,,,,2023-07-24
@@ -649,6 +652,8 @@ North Spain,2,Spain,es,ES-GA,,,,,2024-12-16,
 North Spain,2,Spain,es,ES-NC,,,,,2024-12-16,
 North Spain,2,Spain,es,ES-PV,,,,,2024-12-16,
 North Spain,2,Spain,es,ES-RI,,,,,2024-12-16,
+Northeast France,2,France,fr,FR-GES,,,,,2026-07-13,
+Northeast France,2,France,fr,FR-HDF,,,,,2026-07-13,
 Northeast MX,2,Mexico,mx,MX-COA,,,,,,
 Northeast MX,2,Mexico,mx,MX-NLE,,,,,,
 Northeast MX,2,Mexico,mx,MX-TAM,,,,,,
@@ -699,10 +704,11 @@ South Mexico,2,Mexico,mx,MX-CHP,,,,,,2023-07-24
 South Mexico,2,Mexico,mx,MX-GRO,,,,,,2023-07-24
 South Mexico,2,Mexico,mx,MX-MOR,,,,,,2023-07-24
 South Mexico,2,Mexico,mx,MX-OAX,,,,,,2023-07-24
-South Spain,2,Spain,es,ES-AN,,,,,2024-12-16,
-South Spain,2,Spain,es,ES-CN,,,,,2024-12-16,
+South Spain,2,Spain,es,ES-AN,,,,,2024-12-16,2026-07-13
+South Spain,2,Spain,es,ES-CN,,,,,2024-12-16,2026-07-13
 Southern England,2,Great Britain,gb,GB-ENG,Bedfordshire,,,,2024-12-16,
 Southern England,2,Great Britain,gb,GB-ENG,Berkshire,,,,2024-12-16,
+Southern England,2,Great Britain,gb,GB-ENG,"Bournemouth, Christchurch and Poole",,,,2024-12-16,
 Southern England,2,Great Britain,gb,GB-ENG,Bristol,,,,2024-12-16,
 Southern England,2,Great Britain,gb,GB-ENG,Buckinghamshire,,,,2024-12-16,
 Southern England,2,Great Britain,gb,GB-ENG,Cambridgeshire,,,,2024-12-16,
@@ -724,10 +730,11 @@ Southern England,2,Great Britain,gb,GB-ENG,Surrey,,,,2024-12-16,
 Southern England,2,Great Britain,gb,GB-ENG,West Sussex,,,,2024-12-16,
 Southern England,2,Great Britain,gb,GB-ENG,Wiltshire,,,,2024-12-16,
 Southern England,2,Great Britain,gb,GB-ENG,,Greater London,,,2024-12-16,
+Southern England,2,Great Britain,gb,GB-ENG,,Southampton,,,2024-12-16,
 Southern England,2,Great Britain,gb,GB-ENG,,,Greater London,,2024-12-16,
 Spain,2,Spain,es,,,,,,,
 Switzerland,2,Switzerland,ch,,,,,,,2023-07-24
-Texas,2,United States,us,US-TX,,,,,2025-12-15,
+Texas,2,United States,us,US-TX,,,,,2025-12-15,2026-07-13
 Upstate NY,2,United States,us,US-NY,,,,,,2023-07-24
 Victoria,2,Australia,au,AU-VIC,,,,,2023-07-24,2024-12-16
 West Germany,2,Germany,de,DE-HE,,,,,2024-12-16,
@@ -772,13 +779,6 @@ Brunei,3,Brunei,bn,,,,,,,
 Bulgaria,3,Bulgaria,bg,,,,,,,
 Cambodia,3,Cambodia,kh,,,,,,,
 Caribbean,3,Dominica,dm,,,,,,,
-Caribbean,3,Guadeloupe,fr,FR-971,,,,,,
-Caribbean,3,Martinique,fr,FR-972,,,,,,
-Caribbean,3,Saint Barthelemy,fr,FR-BL,,,,,,
-Caribbean,3,Saint Martin,fr,FR-MF,,,,,,
-Caribbean,3,Haiti,ht,,,,,,,
-Caribbean,3,Jamaica,jm,,,,,,,
-Caribbean,3,Saint Lucia,lc,,,,,,,
 Caribbean,3,Aruba,nl,NL-AW,,,,,,
 Caribbean,3,Virgin Islands,us,US-VI,,,,,,
 Central Chile,3,Chile,cl,CL-AI,,,,,2025-12-15,
@@ -843,16 +843,21 @@ Eastern China,3,China,cn,CN-SH,,,,,2024-12-16,
 Eastern China,3,China,cn,CN-SN,,,,,2024-12-16,
 Eastern China,3,China,cn,CN-ZJ,,,,,2024-12-16,
 Ecuador,3,Ecuador,ec,,,,,,,
-El Salvador,3,El Salvador,sv,,,,,,,
+El Salvador,3,El Salvador,sv,,,,,,,2026-07-13
 Estonia,3,Estonia,ee,,,,,,,
 Everything Else,3,,,,,,,,,
 Finland,3,Finland,fi,,,,,,,
 French Guiana,3,French Guiana,fr,FR-973,,,,,,
+French West Indies,3,Guadeloupe,fr,FR-971,,,,,,
+French West Indies,3,Martinique,fr,FR-972,,,,,,
+French West Indies,3,Saint Barthelemy,fr,FR-BL,,,,,,
+French West Indies,3,Saint Martin,fr,FR-MF,,,,,,
 Georgia,3,Georgia,ge,,,,,,,
 Greece,3,Greece,gr,,,,,,,
 Greenland,3,Greenland,gl,,,,,,,
 Guam,3,Guam,us,US-GU,,,,,,
 Guatemala,3,Guatemala,gt,,,,,,,
+Haiti,3,Haiti,ht,,,,,,,
 Hawaii,3,United States,us,US-HI,,,,,,2023-07-24
 Hawaii,3,United States,us,US-HI,,,,,2023-07-24,
 Heartland North,3,United States,us,US-MN,,,,,2024-07-16,
@@ -871,6 +876,13 @@ Hokkaido,3,Japan,jp,,,,,06,,2023-07-24
 Hokkaido,3,Japan,jp,,,,,07,,2023-07-24
 Hokkaido,3,Japan,jp,,,,,08,,2023-07-24
 Hokkaido,3,Japan,jp,,,,,09,,2023-07-24
+Hokkaido,3,Japan,jp,,,,,00,2026-07-13,
+Hokkaido,3,Japan,jp,,,,,04,2026-07-13,
+Hokkaido,3,Japan,jp,,,,,05,2026-07-13,
+Hokkaido,3,Japan,jp,,,,,06,2026-07-13,
+Hokkaido,3,Japan,jp,,,,,07,2026-07-13,
+Hokkaido,3,Japan,jp,,,,,08,2026-07-13,
+Hokkaido,3,Japan,jp,,,,,09,2026-07-13,
 Hokuriku,3,Japan,jp,,,,,91,,
 Hokuriku,3,Japan,jp,,,,,92,,
 Hokuriku,3,Japan,jp,,,,,93,,
@@ -925,6 +937,7 @@ Inland/Gulf Southeast,3,United States,us,US-KY,Simpson County,,,,2024-12-16,
 Inland/Gulf Southeast,3,United States,us,US-KY,Todd County,,,,2024-12-16,
 Inland/Gulf Southeast,3,United States,us,US-KY,Trigg County,,,,2024-12-16,
 Inland/Gulf Southeast,3,United States,us,US-KY,Warren County,,,,2024-12-16,
+Inland/Gulf Southeast,3,United States,us,US-LA,,,,,2026-07-13,
 Inland/Gulf Southeast,3,United States,us,US-MS,,,,,2024-12-16,
 Inland/Gulf Southeast,3,United States,us,US-TN,,,,,2024-12-16,
 Ireland,3,Northern Ireland,gb,GB-NIR,,,,,,
@@ -932,6 +945,7 @@ Ireland,3,Ireland,ie,,,,,,,
 Isle of Man,3,Isle of Man,im,,,,,,,
 Israel,3,Israel,il,,,,,,,
 Italy,3,Italy,it,,,,,,2024-07-16,
+Jamaica,3,Jamaica,jm,,,,,,,
 Kazakhstan,3,Kazakhstan,kz,,,,,,,
 Kosovo,3,Kosovo,xk,,,,,,,
 Kuwait,3,Kuwait,kw,,,,,,,
@@ -940,7 +954,7 @@ Laos,3,Laos,la,,,,,,,
 Latvia,3,Latvia,lv,,,,,,,
 Lebanon,3,Lebanon,lb,,,,,,,
 Lithuania,3,Lithuania,lt,,,,,,,
-Louisiana,3,United States,us,US-LA,,,,,2023-12-18,
+Louisiana,3,United States,us,US-LA,,,,,2023-12-18,2026-07-13
 Luxembourg,3,Luxembourg,lu,,,,,,2023-07-24,
 Madagascar,3,Madagascar,mg,,,,,,,
 Malaysia,3,Malaysia,my,,,,,,,
@@ -1080,7 +1094,7 @@ Northern China,3,China,cn,CN-TJ,,,,,2024-12-16,
 Northern Mariana Islands,3,Northern Mariana Islands,us,US-MP,,,,,,
 Northern Ontario,3,Canada,ca,CA-ON,,,Northeastern Ontario,,,
 Northern Ontario,3,Canada,ca,CA-ON,,,Northwestern Ontario,,,
-Northern Territories,3,Australia,au,AU-NT,,,,,2023-07-24,
+Northern Territory,3,Australia,au,AU-NT,,,,,2023-07-24,
 Northwest Mountains,3,United States,us,US-ID,,,,,2025-12-15,
 Northwest Mountains,3,United States,us,US-MT,,,,,2025-12-15,
 Northwest Mountains,3,United States,us,US-OR,Baker County,,,,2025-12-15,
@@ -1180,6 +1194,7 @@ Rocky Mountains,3,United States,us,US-MT,,,,,2023-07-24,
 Rocky Mountains,3,United States,us,US-OR,Malheur County,,,,2023-07-24,
 Rocky Mountains,3,United States,us,US-WY,,,,,2023-07-24,
 Russia,3,Russia,ru,,,,,,2025-12-15,
+Saint Lucia,3,Saint Lucia,lc,,,,,,,
 Saskatchewan,3,Canada,ca,CA-SK,,,,,2023-07-24,
 Saudi Arabia,3,Saudi Arabia,sa,,,,,,,
 Scotland,3,Great Britain,gb,GB-SCT,,,,,2025-07-07,
@@ -1200,6 +1215,8 @@ South Mexico,3,Mexico,mx,MX-CHP,,,,,2023-07-24,
 South Mexico,3,Mexico,mx,MX-GRO,,,,,2023-07-24,
 South Mexico,3,Mexico,mx,MX-MOR,,,,,2023-07-24,
 South Mexico,3,Mexico,mx,MX-OAX,,,,,2023-07-24,
+South Spain,3,Spain,es,ES-AN,,,,,2026-07-13,
+South Spain,3,Spain,es,ES-CN,,,,,2026-07-13,
 Southeast Brazil,3,Brazil,br,BR-ES,,,,,,
 Southeast Brazil,3,Brazil,br,BR-MG,,,,,,
 Southeast Brazil,3,Brazil,br,BR-RJ,,,,,,
