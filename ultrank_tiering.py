@@ -1072,8 +1072,8 @@ def read_players():
                 row['Start Date']).replace(tzinfo=datetime.timezone.utc) if row['Start Date'] != '' else None
             end_date = datetime.datetime.fromisoformat(
                 row['End Date']).replace(tzinfo=datetime.timezone.utc) if row['End Date'] != '' else None
-            midpt_date = datetime.date.fromisoformat(
-                row['Midpt Date']) if row['Midpt Date'] != '' else None
+            midpt_date = datetime.datetime.fromisoformat(
+                row['Midpt Date']).replace(tzinfo=datetime.timezone.utc) if row['Midpt Date'] != '' else None
 
             if id_ not in players:
                 player_value_group = PlayerValueGroup(
