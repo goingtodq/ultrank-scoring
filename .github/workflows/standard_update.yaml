@@ -25,7 +25,7 @@ jobs:
       # Unsure exactly what numbers to put here.
       - name: Generate input.txt file with dates
         run: |
-          START_DATE=$(date -u -d "-3 days" +%Y-%m-%d)
+          START_DATE=$(date -u -d "-7 days" +%Y-%m-%d)
           END_DATE=$(date -u -d "+6 months" +%Y-%m-%d)
           printf "%s\n%s\n" "$START_DATE" "$END_DATE" > input.txt
 
