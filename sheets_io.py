@@ -4,6 +4,7 @@ import gspread
 from datetime import datetime, timedelta, timezone
 from google.oauth2.service_account import Credentials
 from zoneinfo import ZoneInfo
+from enum import IntEnum
 
 
 client = None
@@ -12,24 +13,27 @@ TTS_SHEET = "https://docs.google.com/spreadsheets/d/1aQEUAPqzF49OPMNNyPlelH5mRKt
 NOMINATIM_SHEET = "nominatim-cache"
 EVENTS_SHEET = "all-events"
 
-DATE_INDEX = 0
-EVENT_DATE_INDEX = 1
-TOURNAMENT_INDEX = 2
-ACTIVITY_STATE_INDEX = 3
-OVERRIDE_STATE_INDEX = 4
-PROGRESS_INDEX = 6
-CLASSIFICATION_INDEX = 7
-OVERRIDE_DATE_INDEX = 8
-NICKNAME_INDEX = 9
-ID_INDEX = 12
-SLUG_INDEX = 13
-SCORE_INDEX = 15
-ALT_SCORE_INDEX = 16
-OVERRIDE_SCORE_INDEX = 17
-ENTRANTS_INDEX = 18
-JUSTIFICATION_INDEX = 21
-NOTE_INDEX = 22
-EVENTS_COLUMNS = 23
+class EventsIndices(IntEnum):
+    DATE = 0
+    EVENT = 1
+    TOURNAMENT = 2
+    ACTIVITY_STATE = 3
+    OVERRIDE_STATE = 4
+    PROGRESS = 6
+    CLASSIFICATION = 7
+    OVERRIDE_DATE = 8
+    NICKNAME = 9
+    TYPE = 11
+    ID = 13
+    SLUG = 14
+    SCORE = 16
+    ALT_SCORE = 17
+    OVERRIDE_SCORE = 18
+    ENTRANTS = 19
+    JUSTIFICATION = 22
+    NOTE = 23
+
+EVENTS_SHEET_COLUMNS = 24
 
 def authorize():
     global client
@@ -74,26 +78,26 @@ def create_events_dict(tts_events, updated_events):
         if len(event) == 0:
             continue
 
-        events_dict[event[ID_INDEX]] = event[0:ID_INDEX] + event[ID_INDEX + 1:]
+        events_dict[event[EventsIndices.ID]] = event[0:EventsIndices.ID] + event[EventsIndices.ID + 1:]
 
         # We need to be using full rows. Otherwise things get messed up.
-        while len(events_dict[event[ID_INDEX]]) < EVENTS_COLUMNS - 1:
-            events_dict[event[ID_INDEX]].append('')
+        while len(events_dict[event[EventsIndices.ID]]) < EVENTS_SHEET_COLUMNS - 1:
+            events_dict[event[EventsIndices.ID]].append('')
     
 
     for event in updated_events:
-        if event[ID_INDEX] in events_dict:
-            current_event = events_dict[event[ID_INDEX]]
+        if event[EventsIndices.ID] in events_dict:
+            current_event = events_dict[event[EventsIndices.ID]]
 
             # Override purple fields (ex: nickname)
             for index, field in enumerate(current_event):
-                if index in [CLASSIFICATION_INDEX, OVERRIDE_STATE_INDEX, OVERRIDE_DATE_INDEX, NICKNAME_INDEX, OVERRIDE_SCORE_INDEX - 1, NOTE_INDEX - 1]:
-                    event[index + 1 if index >= ID_INDEX else index] = field
+                if index in [EventsIndices.CLASSIFICATION, EventsIndices.OVERRIDE_STATE, EventsIndices.OVERRIDE_DATE, EventsIndices.NICKNAME, EventsIndices.OVERRIDE_SCORE - 1, EventsIndices.NOTE - 1]:
+                    event[index + 1 if index >= EventsIndices.ID else index] = field
 
-        if event[JUSTIFICATION_INDEX] == None:
-            event[JUSTIFICATION_INDEX] = ''
+        if event[EventsIndices.JUSTIFICATION] == None:
+            event[EventsIndices.JUSTIFICATION] = ''
 
-        events_dict[event[ID_INDEX]] = event[0:ID_INDEX] + event[ID_INDEX + 1:]
+        events_dict[event[EventsIndices.ID]] = event[0:EventsIndices.ID] + event[EventsIndices.ID + 1:]
 
     return events_dict
 
@@ -123,28 +127,28 @@ def write_events(data):
     main_sheet = client.open_by_url(TTS_SHEET)
     events_sheet = main_sheet.worksheet(EVENTS_SHEET)
 
-    events = events_sheet.get("A3:W")
+    events = events_sheet.get("A3:X")
     events_dict = create_events_dict(events, data)
 
     formatted_events = []
     for id, event in events_dict.items():
-        formatted_events.append(event[0:ID_INDEX] + [int(id)] + event[ID_INDEX:])
+        formatted_events.append(event[0:EventsIndices.ID] + [int(id)] + event[EventsIndices.ID:])
 
         # recast (due to raw... annoying)
-        formatted_events[-1][PROGRESS_INDEX] = float(formatted_events[-1][PROGRESS_INDEX])
-        formatted_events[-1][SCORE_INDEX] = int(formatted_events[-1][SCORE_INDEX])
-        formatted_events[-1][ALT_SCORE_INDEX] = int(formatted_events[-1][ALT_SCORE_INDEX])
+        formatted_events[-1][EventsIndices.PROGRESS] = float(formatted_events[-1][EventsIndices.PROGRESS])
+        formatted_events[-1][EventsIndices.SCORE] = int(formatted_events[-1][EventsIndices.SCORE])
+        formatted_events[-1][EventsIndices.ALT_SCORE] = int(formatted_events[-1][EventsIndices.ALT_SCORE])
         try:
-            formatted_events[-1][OVERRIDE_SCORE_INDEX] = int(formatted_events[-1][OVERRIDE_SCORE_INDEX])
+            formatted_events[-1][EventsIndices.OVERRIDE_SCORE] = int(formatted_events[-1][EventsIndices.OVERRIDE_SCORE])
         except ValueError:
             pass
-        formatted_events[-1][ENTRANTS_INDEX] = int(formatted_events[-1][ENTRANTS_INDEX])
+        formatted_events[-1][EventsIndices.ENTRANTS] = int(formatted_events[-1][EventsIndices.ENTRANTS])
 
-        formatted_events[-1][TOURNAMENT_INDEX] = format_event_link(formatted_events[-1][TOURNAMENT_INDEX], formatted_events[-1][SLUG_INDEX])
-        formatted_events[-1][CLASSIFICATION_INDEX] = format_classification(formatted_events[-1][CLASSIFICATION_INDEX])
+        formatted_events[-1][EventsIndices.TOURNAMENT] = format_event_link(formatted_events[-1][EventsIndices.TOURNAMENT], formatted_events[-1][EventsIndices.SLUG])
+        formatted_events[-1][EventsIndices.CLASSIFICATION] = format_classification(formatted_events[-1][EventsIndices.CLASSIFICATION])
 
-    formatted_events.sort(key=lambda x: int(x[SCORE_INDEX]), reverse=True)
-    formatted_events.sort(key=lambda x: x[DATE_INDEX], reverse=True)
+    formatted_events.sort(key=lambda x: int(x[EventsIndices.SCORE]), reverse=True)
+    formatted_events.sort(key=lambda x: x[EventsIndices.DATE], reverse=True)
 
     # USER_ENTERED lets hyperlinks show up.
     events_sheet.spreadsheet.values_batch_update({
@@ -225,7 +229,7 @@ def remove_old_events():
 
     main_sheet = client.open_by_url(TTS_SHEET)
     events_sheet = main_sheet.worksheet(EVENTS_SHEET)
-    events = events_sheet.get("A3:W")
+    events = events_sheet.get("A3:X")
 
     cutoff_period = timedelta(days=21) # 3 weeks for now
     cutoff_date = datetime.now(ZoneInfo("UTC")).date() - cutoff_period
@@ -237,9 +241,9 @@ def remove_old_events():
         if len(row) == 0:
             continue
 
-        override_date = row[OVERRIDE_DATE_INDEX].strip()
+        override_date = row[EventsIndices.OVERRIDE_DATE].strip()
         if override_date == "":
-            unparsed_date = row[DATE_INDEX]
+            unparsed_date = row[EventsIndices.DATE]
         else:
             unparsed_date = override_date
 
@@ -253,21 +257,21 @@ def remove_old_events():
 
         # keep classified events. not perfect metric, likely should be changed later
         # or we have multiple scripts? idk
-        classification = row[CLASSIFICATION_INDEX]
+        classification = row[EventsIndices.CLASSIFICATION]
         if parsed_date < cutoff_date and classification == "":
-            removed_event_ids.append(row[ID_INDEX])
+            removed_event_ids.append(row[EventsIndices.ID])
         else:
             kept_events.append(row)
 
     # this is needed
     for event in kept_events:
-        event[TOURNAMENT_INDEX] = format_event_link(event[TOURNAMENT_INDEX], event[SLUG_INDEX])
+        event[EventsIndices.TOURNAMENT] = format_event_link(event[EventsIndices.TOURNAMENT], event[EventsIndices.SLUG])
 
-    kept_events.sort(key=lambda x: int(x[SCORE_INDEX]), reverse=True)
-    kept_events.sort(key=lambda x: x[DATE_INDEX], reverse=True)
+    kept_events.sort(key=lambda x: int(x[EventsIndices.SCORE]), reverse=True)
+    kept_events.sort(key=lambda x: x[EventsIndices.DATE], reverse=True)
 
     for i in range(0, len(removed_event_ids)):
-        kept_events.append([''] * EVENTS_COLUMNS)
+        kept_events.append([''] * EVENTS_SHEET_COLUMNS)
 
     events_sheet.spreadsheet.values_batch_update({
         'value_input_option': 'USER_ENTERED',

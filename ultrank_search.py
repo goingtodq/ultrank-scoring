@@ -2,13 +2,13 @@
 
 from startgg_toolkit import send_request
 import dateparser
-import csv
-import os
 import traceback
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from ultrank_bulk import bulk_score, write_results
 from ultrank_tiering import Addresses
-from sheets_io import fetch_updated_at, write_updated_at, write_cached_addresses, fetch_updated_players, write_players, write_script_endtime
+from sheets_io import fetch_updated_at, write_updated_at, write_cached_addresses, write_script_endtime
+
+ENTRANT_MIN = 50
 
 class Tournament:
     def __init__(self, name, slug, start_at):
@@ -41,7 +41,6 @@ def events_updated_at_query(start_time, end_time, page=1, per_page=40):
         slug
         state
         updatedAt
-        type
         numEntrants
         videogame {
           id
@@ -108,35 +107,36 @@ def retrieve_events_updated_at(start_time, end_time):
         time += TIME_STEP
 
     for slice in time_slices:
-      page = 0
-      while True:
-          query, variables = events_updated_at_query(slice[0], slice[1], page=page)
-          resp = send_request(query, variables)
+        page = 0
+        while True:
+            query, variables = events_updated_at_query(slice[0], slice[1], page=page)
+            resp = send_request(query, variables)
 
-          # To avoid crashes... should ideally never be triggered.
-          if resp['data']['tournaments'] is None:
-              print('Early exit from retrieve_events_updated_at', resp)
-              break
+            # To avoid crashes... should ideally never be triggered.
+            if resp['data']['tournaments'] is None:
+                print('Early exit from retrieve_events_updated_at', resp)
+                break
 
-          for tournament in resp['data']['tournaments']['nodes']:
-              if tournament['events'] is None:
-                  continue
+            for tournament in resp['data']['tournaments']['nodes']:
+                if tournament['events'] is None:
+                    continue
 
-              try:
-                  events = [event for event in tournament['events'] if (
-                      event['type'] == 1 and event['videogame']['id'] == 1386 and event['numEntrants'] != None and event['numEntrants'] >= 8)]
+                try:
+                    events = [event for event in tournament['events'] if (
+                        event['videogame']['id'] == 1386 and event['numEntrants'] != None and event['numEntrants'] >= ENTRANT_MIN)]
 
-                  for event in events:
-                      updated[str(event['id'])] = [event['updatedAt'], event['numEntrants'], event['state']]
-              except Exception as e:
-                  print(e)
-                  print(tournament)
-                  traceback.print_exc()
-          if page >= resp['data']['tournaments']['pageInfo']['totalPages']:
-              break
-          if page >= resp['data']['tournaments']['pageInfo']['totalPages']:
-              print(f"Page count overflow: {resp['data']['tournaments']['pageInfo']['totalPages']}")
-          page += 1
+                    for event in events:
+                        updated[str(event['id'])] = [event['updatedAt'], event['numEntrants'], event['state']]
+                except Exception as e:
+                    print(e)
+                    print(tournament)
+                    traceback.print_exc()
+            if page >= resp['data']['tournaments']['pageInfo']['totalPages']:
+                break
+            if page >= resp['data']['tournaments']['pageInfo']['totalPages']:
+                print(f"Page count overflow: {resp['data']['tournaments']['pageInfo']['totalPages']}")
+            page += 1
+
     return updated
 
 def retrieve_events_by_player(start_time, end_time, player):
@@ -152,7 +152,7 @@ def retrieve_events_by_player(start_time, end_time, player):
             events = [event for event in player_events if (
                 event['type'] == 1
                 and start_time <= event['tournament']['startAt'] and event['tournament']['startAt'] <= end_time 
-                and event['numEntrants'] != None and event['numEntrants'] >= 8)]
+                and event['numEntrants'] != None and event['numEntrants'] >= ENTRANT_MIN)]
             for event in events:
                 event_slugs.append(event['slug'])
         except Exception as e:

@@ -1,19 +1,11 @@
 from ultrank_tiering import Tournament, TournamentTieringResult
-from startgg_toolkit import startgg_slug_regex
 from sheets_io import write_events
 from datetime import datetime
 from Levenshtein import jaro_winkler
 from startgg_toolkit import send_request
-from datetime import datetime, timedelta, timezone
-import csv
-import os 
-import re
-import sys
+from datetime import datetime, timedelta
 
-true_values = ['true', 't', '1']
-
-
-class Tournament2:
+class _Tournament:
     def __init__(self, name, slug, start_at):
         self.name = name
         self.slug = slug
@@ -77,21 +69,6 @@ def admin_query(tournament_slug, page=1, per_page=75):
 
     return query, variables
 
-def tournament_owner_query(tournament_slug):
-    query = '''query tournamentOwnerQuery($tournamentSlug: String!) {
-  tournament(slug: $tournamentSlug) {
-    owner {
-      discriminator
-    }
-  }
-}'''
-    variables = '''{{
-        "tournamentSlug": "{}"
-    }}'''.format(tournament_slug)
-
-    return query, variables
-
-
 def get_admined_tournaments(tournament_slug, day_range=15):
     """Gather all tournament names with the same owner as the requested tournament,
     within the specified day range prior.
@@ -132,12 +109,14 @@ def get_admined_tournaments(tournament_slug, day_range=15):
             break
 
         # Gather tournaments
-        tournaments.extend([Tournament2(tournament['name'], tournament['slug'], tournament['startAt']) for tournament in resp['data']['tournament']['owner']['tournaments']['nodes'] if (
+        tournaments.extend([_Tournament(tournament['name'], tournament['slug'], tournament['startAt']) for tournament in resp['data']['tournament']['owner']['tournaments']['nodes'] if (
             tournament['owner']['id'] == tournament_owner_id and tournament['slug'] != tournament_slug and tournament['startAt'] >= range_start and tournament['startAt'] <= tournament_start
             and tournament['hasOfflineEvents'])])
 
         # Check if all tournaments are before the requested tournament.
-        # Since the API returns tournaments in reverse chronological order, this means that we don't need to check the rest.
+        # Since the API returns tournaments in reverse chronological order 
+        # (maybe not good to rely on, but the alternative also sucks), 
+        # this means that we don't need to check the rest.
         if resp['data']['tournament']['owner']['tournaments']['nodes'][-1]['startAt'] < tournament_start:
             break
 
@@ -145,8 +124,7 @@ def get_admined_tournaments(tournament_slug, day_range=15):
             break
         page += 1
 
-    tournaments.insert(0, Tournament2(
-        tournament_name, tournament_slug, tournament_start))
+    tournaments.insert(0, _Tournament(tournament_name, tournament_slug, tournament_start))
 
     return tournaments
 
@@ -154,7 +132,7 @@ def get_admined_tournaments(tournament_slug, day_range=15):
 def check_potential_weekly(tournamentSlug):
     other_admined_tournaments = get_admined_tournaments(tournamentSlug)
 
-    # Should never logically happen apart from deletion scenarios. Why is this triggered?
+    # TODO: Should never logically happen apart from deletion scenarios. Why is this triggered?
     if other_admined_tournaments is None:
         return None
 
@@ -172,13 +150,17 @@ def check_potential_weekly(tournamentSlug):
 def check_blacklist(discriminator):
     return discriminator in organizer_blacklist
 
-def validate_event(event):
+def validate_event(event: TournamentTieringResult):
+    """Rough check for ranking validity."""
     used = False
     skip_reason = None
 
     # No online events are valid.
     if event.is_online:
         return [used, "Online Event"]
+
+    if event.event_type != 1:
+        return [used, "Not a singles event"]
 
     for skip in skip_weekly_check:
         if skip.lower() in event.event.lower():
@@ -259,9 +241,26 @@ def write_results(results):
     for result in results:
         formatted_result = []
         if isinstance(result, TournamentTieringResult):
-            formatted_result = [result.date.isoformat().replace("+00:00", ""), result.event_date.isoformat().replace("+00:00", ""), result.tournament, result.activity_state, 
-                                "", result.is_online, result.set_progress, "", "", "", result.event, result.region.note, result.event_id, result.slug, 
-                                result.is_invitational, result.score, result.max_potential_score(), "", result.entrants,
+            formatted_result = [result.date.isoformat().replace("+00:00", ""), 
+                                result.event_date.isoformat().replace("+00:00", ""), 
+                                result.tournament, 
+                                result.activity_state, 
+                                "", 
+                                result.is_online, 
+                                result.set_progress, 
+                                "", 
+                                "", 
+                                "", 
+                                result.event, 
+                                result.event_type, 
+                                result.region.note, 
+                                result.event_id, 
+                                result.slug, 
+                                result.is_invitational, 
+                                result.score, 
+                                result.max_potential_score(), 
+                                "", 
+                                result.entrants,
                                 str(result.should_count())]
             formatted_result += validate_event(result)
             formatted_result += [""]
@@ -272,39 +271,3 @@ def write_results(results):
             continue
 
     write_events(formatted_results)
-
-if __name__ == '__main__':
-    # Get file
-    file = input('input file to read keys from: ')
-
-    if not os.path.exists(file):
-        print('file doesn\'t exist!')
-        sys.exit()
-
-    # Read in values
-    slugs = []
-
-    _, ext = os.path.splitext(file)
-
-    if ext == '.csv':
-        with open(file, newline='') as file_obj:
-            reader = csv.DictReader(file_obj)
-
-            for row in reader:
-                slug = row['startgg slug']
-
-                if len(row) > 1:
-                    is_invit = row['Is Invitational?'].lower() in true_values
-                else:
-                    is_invit = False
-
-                slugs.append({'slug': slug, 'invit': is_invit})
-    else:
-        with open(file) as file_obj:
-            for row in file_obj:
-                slugs.append({'slug': row.strip(), 'invit': False})
-
-    print('read values')
-
-    results = bulk_score(slugs)
-    write_results(results)

@@ -9,13 +9,11 @@ Requirements:
   ultrank_invitational.csv
 """
 
-from startgg_toolkit import send_request, isolate_slug, refresh_startgg_key
+from startgg_toolkit import send_request, isolate_slug
 from sheets_io import fetch_cached_addresses
 from geopy.geocoders import Nominatim
 import csv
-import re
 import sys
-import json
 import datetime
 import time
 
@@ -201,13 +199,14 @@ class PlayerValueGroup:
 
 
 class TournamentTieringResult:
-    def __init__(self, event_id, slug, is_online, updated_at, score, entrants, set_progress, region, values, dqs, potential, date, event_date, eventName, 
+    def __init__(self, event_id, slug, is_online, updated_at, score, event_type, entrants, set_progress, region, values, dqs, potential, date, event_date, eventName, 
                  tournamentName, tournamentSlug, ownerDiscriminator, activity_state="NO_STATE", is_invitational=False, phases=[], dq_count=-1):
         self.event_id = event_id
         self.slug = slug
         self.is_online = is_online
         self.updated_at = updated_at
         self.score = score
+        self.event_type = event_type
         self.values = values
         self.dqs = dqs
         self.potential = potential
@@ -226,76 +225,8 @@ class TournamentTieringResult:
         self.phases = phases
         self.max_score = None
 
-
     def using_new_tiering_system(self):
         return self.date > NEW_MULT_SYSTEM_DATE
-
-    def write_result(self, filelike=None):
-        original_stdout = sys.stdout
-
-        if filelike != None:
-            sys.stdout = filelike
-
-        print('{} - {} ({}){}'.format(self.tournament, self.event,
-                                      self.slug, ' (invitational)' if self.is_invitational else ''))
-        print('Phases used: {}'.format(str(self.phases)))
-        print()
-
-        if not self.should_count():
-            print('WARNING: This tournament does not meet the criteria of at least {} entrants or a score of at least {} with {} qualified players'.format(
-                self.region.entrant_floor, self.region.score_floor, NUM_PLAYERS_FLOOR))
-            print()
-        elif not self.should_count_strict():
-            print('WARNING: This tournament may not meet the criteria of at least {} entrants or a score of at least {} with {} qualified players'.format(
-                self.region.entrant_floor, self.region.score_floor, NUM_PLAYERS_FLOOR))
-            print()
-
-        participants_string = '{} - {} DQs = {}'.format(
-            self.entrants + self.dq_count, self.dq_count, self.entrants) if self.dq_count != -1 else str(self.entrants)
-
-        if self.date > NEW_MULT_SYSTEM_DATE:
-            print_str = 'Entrants: '
-            print_str += participants_string
-            entrants_score = self.entrants
-            if self.region.multiplier >= 2:
-                print_str += ' + {} (x2)'.format(str(min(256, self.entrants)))
-                entrants_score += min(256, self.entrants)
-            if self.region.multiplier >= 3:
-                print_str += ' + {} (x3)'.format(str(min(128, self.entrants)))
-                entrants_score += min(128, self.entrants)
-            if self.region.multiplier == 1:
-                print_str += ' (x1)'
-            print_str += f' = {entrants_score} [x{self.region.multiplier}, {self.region.note}]'
-            print(print_str)
-
-        else:
-            print('Entrants: {} x {} [{}] = {}'.format(
-                participants_string, self.region.multiplier, self.region.note, self.entrants * self.region.multiplier))
-
-        print()
-        print('Top Player Points: ')
-
-        for participant in self.values:
-            print('  {}'.format(str(participant)))
-
-        print()
-        print('Total Score: {}'.format(self.score))
-
-        if len(self.dqs) > 0:
-            print()
-            print('-----')
-            print('DQs')
-            for dq in self.dqs:
-                print('  {}'.format(str(dq)))
-
-        if len(self.potential) > 0:
-            print()
-            print('-----')
-            print('Potentially Mismatched Players')
-            for match in self.potential:
-                print('  {}'.format(str(match)))
-
-        sys.stdout = original_stdout
 
     def max_potential_score(self):
         if self.max_score != None:
@@ -514,6 +445,7 @@ class Tournament:
         resp = send_request(query, variables)
         self.general_data = resp['data']
         self.event_slug = isolate_slug(resp['data']['event']['slug'])
+        self.event_type = self.general_data['event']['type']
         self.is_online = self.general_data['event']['isOnline']
 
     def gather_entrant_counts(self):
@@ -521,12 +453,13 @@ class Tournament:
         self.total_dqs = -1  # Placeholder value
 
         event_progressed = False
+        # TODO: change this I hate it
         if self.general_data['event']['phases'] is not None:
-            event_progressed = check_phase_completed(self.event_slug, self.general_data['event']['phases'])
+            event_progressed = check_phase_completed(self.general_data['event']['phases'])
 
 
         if event_progressed:
-            self.phases = collect_phases(self.event_slug, self.general_data['event']['phases'])
+            self.phases = collect_phases(self.general_data['event']['phases'])
 
             self.dq_list, self.participants = get_dqs(
                 self.event_slug, phase_ids=[phase['id'] for phase in self.phases])
@@ -542,7 +475,8 @@ class Tournament:
             self.total_entrants = len(self.participants) + self.total_dqs
 
         else:
-            self.participants = get_entrants(self.event_slug, self.general_data['event']['entrants'])
+            self.participants = get_entrants(self.event_slug, self.general_data['event']['entrants'], self.event_type)
+
             self.dq_list = {}
             self.total_dqs = -1
             self.total_entrants = len(self.participants)
@@ -556,7 +490,7 @@ class Tournament:
             self.set_progress = 0
             return
         
-        phases = collect_phases(self.event_slug, self.general_data['event']['phases'])
+        phases = collect_phases(self.general_data['event']['phases'])
         phase_ids = [phase['id'] for phase in phases]
 
         if len(phase_ids) == 0:
@@ -727,7 +661,8 @@ class Tournament:
                                             slug=self.event_slug, 
                                             is_online=self.is_online, 
                                             updated_at=self.general_data['event']['updatedAt'], 
-                                            score=total_score, 
+                                            score=total_score,
+                                            event_type=self.event_type,
                                             entrants=self.total_entrants, 
                                             set_progress=self.set_progress, 
                                             region=best_region, 
@@ -747,30 +682,11 @@ class Tournament:
 
         return self.tier
 
-
+# TODO: switch to indexing based on event id instead of event slug
 def entrants_query(event_slug, page_num=1, per_page=490):
-    query = '''query getEntrants($eventSlug: String!, $pageNum: Int!, $perPage: Int!) {
-        event(slug: $eventSlug) {
-            entrants(
-                query: {
-                    page: $pageNum,
-                    perPage: $perPage
-                }
-            ){
-                pageInfo {
-                    totalPages
-                }
-                nodes {
-                    participants {
-                        player {
-                            gamerTag
-                            id
-                        }
-                    }
-                }
-            }
-        }
-    }'''
+    with open("queries/entrants_query.txt", 'r') as file:
+        query = file.read()
+
     variables = '''{{
         "eventSlug": "{}",
         "pageNum": {},
@@ -781,39 +697,9 @@ def entrants_query(event_slug, page_num=1, per_page=490):
 
 def sets_query(event_slug, page_num=1, per_page=50, phases=None):
     """Generates a query to retrieve sets from an event."""
+    with open("queries/sets_query.txt", 'r') as file:
+        query = file.read()
 
-    query = '''query getSets($eventSlug: String!, $pageNum: Int!, $perPage: Int!, $phases: [ID]!) {
-  event(slug: $eventSlug) {
-    sets(page: $pageNum, perPage: $perPage, filters:{ state: [3], phaseIds: $phases}) {
-      pageInfo {
-        page
-        totalPages
-      }
-      nodes {
-        wPlacement
-        winnerId
-        slots {
-          entrant {
-            id
-            participants {
-              player {
-                gamerTag
-                id
-              }
-            }
-          }
-          standing {
-            stats {
-              score {
-                value
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}'''
     variables = '''{{
         "eventSlug": "{}",
         "pageNum": {},
@@ -824,15 +710,11 @@ def sets_query(event_slug, page_num=1, per_page=50, phases=None):
 
 def set_progress_query(event_slug, phases):
     """Generates a query to retrieve information related to the progress of the event
-    Full progress can be inferred from the total number of sets + total number of completed sets.
-    (Not 100% sure this always works; does it interact well with phases? Needs more testing.)
+    Full progress can be derived from the total number of sets + total number of completed sets.
     """
-    query = '''query getProgress($eventSlug: String!, $phases: [ID]!) {
-    event(slug: $eventSlug) {
-        totalSets: sets(page: 1, perPage: 1, filters: { phaseIds: $phases }) { pageInfo { total }}
-        completedSets: sets(page: 1, perPage: 1, filters: { phaseIds: $phases, state: [3] }) { pageInfo { total }}
-    }
-}'''
+    with open("queries/set_progress_query.txt", 'r') as file:
+        query = file.read()
+
     variables = '''{{
         "eventSlug": "{}",
         "phases": {}
@@ -842,51 +724,9 @@ def set_progress_query(event_slug, phases):
 
 def general_query(event_id):
     """Generates query to retrieve general tournament information: name, time, location, phases, entrants"""
+    with open("queries/general_query.txt", 'r') as file:
+        query = file.read()
 
-    query = '''query generalQuery($eventId: ID!) {
-  event(id: $eventId) {
-    name
-    slug
-    state
-    startAt
-    updatedAt
-    isOnline
-    tournament {
-      name
-      startAt
-      slug
-      lat
-      lng
-      owner {
-        discriminator
-      }
-    }
-    phases {
-      id
-      name
-      state
-      isExhibition
-    }
-    entrants(
-        query: {
-            page: 1,
-            perPage: 200
-        }
-    ){
-        pageInfo {
-            totalPages
-        }
-        nodes {
-            participants {
-                player {
-                    gamerTag
-                    id
-                }
-            }
-        }
-    }
-  }
-}'''
     variables = '''{{
         "eventId": "{}"
     }}'''.format(event_id)
@@ -918,7 +758,7 @@ def get_sets_in_phases(event_slug, phase_ids):
     return sets
 
 
-def check_phase_completed(event_slug, phases):
+def check_phase_completed(phases):
     """Checks to see if any phases are completed."""
 
     try:
@@ -933,33 +773,44 @@ def check_phase_completed(event_slug, phases):
     return False
 
 
-def collect_phases(event_slug, phases):
+def collect_phases(phases):
     """Collects phases that are part of the main tournament.
     (Hopefully) excludes amateur brackets.
     """
 
     return [phase for phase in phases if not phase['isExhibition']]
 
-def get_entrants(event_slug, base_entrants):
+def get_entrants(event_slug, base_entrants, event_type):
     page = 1
     participants = set()
 
+    per_page=480
+    if event_type != 1:
+        per_page = 240
+
     while True:
         current = dict()
-
         if base_entrants['pageInfo']['totalPages'] > 1:
-            query, variables = entrants_query(event_slug, page_num=page)
+            query, variables = entrants_query(event_slug, page_num=page, per_page=per_page)
             resp = send_request(query, variables)
+
+            # we may need to do exponential backoff since we don't know how many players are on each team
+            # >32 players may quietly fail, but I don't think that will happen.
+            if 'errors' in resp and resp['errors'][0]['message'].find("query complexity is too high") != -1:
+                per_page /= 2
+                page = page * 2 - 1
+                continue
+
             current = resp['data']['event']['entrants']
         else:
             current = base_entrants
 
         for entrant in current['nodes']:
             try:
-                player_data = Entrant(
-                    entrant['participants'][0]['player']['id'], entrant['participants'][0]['player']['gamerTag'])
+                for participant in entrant['participants']:
+                    player_data = Entrant(participant['player']['id'], participant['player']['gamerTag'])
 
-                participants.add(player_data)
+                    participants.add(player_data)
             except Exception as e:
                 print(e)
                 print(resp)
@@ -990,35 +841,43 @@ def get_dqs(event_slug, phase_ids=None):
 
         try:
             loser = 1 if set_data['winnerId'] == set_data['slots'][0]['entrant']['id'] else 0
+            player_data_0 = []
+            player_data_1 = []
 
-            player_data_0 = Entrant(set_data['slots'][0]['entrant']['participants'][0]['player']
-                                    ['id'], set_data['slots'][0]['entrant']['participants'][0]['player']['gamerTag'])
-            player_data_1 = Entrant(set_data['slots'][1]['entrant']['participants'][0]['player']
-                                    ['id'], set_data['slots'][1]['entrant']['participants'][0]['player']['gamerTag'])
+            for participant in set_data['slots'][0]['entrant']['participants']:
+                player_data_0.append(Entrant(participant['player']['id'], 
+                                             participant['player']['gamerTag']))
+            for participant in set_data['slots'][1]['entrant']['participants']:
+                player_data_1.append(Entrant(participant['player']['id'], 
+                                             participant['player']['gamerTag']))
             player_data_loser = player_data_0 if loser == 0 else player_data_1
 
             if set_data['slots'][0]['standing'] == None and set_data['slots'][1]['standing'] == None:
-                player_id = set_data['slots'][loser]['entrant']['participants'][0]['player']['id']
+                for index, participant in enumerate(set_data['slots'][loser]['entrant']['participants']):
+                    player_id = participant['player']['id']
 
-                if player_id in dq_list.keys():
-                    dq_list[player_id][1] += 1
-                else:
-                    dq_list[player_id] = [player_data_loser, 1]
+                    if player_id in dq_list.keys():
+                        dq_list[player_id][1] += 1
+                    else:
+                        dq_list[player_id] = [player_data_loser[index], 1]
                 continue
 
             game_count = set_data['slots'][loser]['standing']['stats']['score']['value']
 
             if game_count == -1:
-                player_id = set_data['slots'][loser]['entrant']['participants'][0]['player']['id']
+                for index, participant in enumerate(set_data['slots'][loser]['entrant']['participants']):
+                    player_id = participant['player']['id']
 
-                if player_id in dq_list.keys():
-                    dq_list[player_id][1] += 1
-                else:
-                    dq_list[player_id] = [player_data_loser, 1]
+                    if player_id in dq_list.keys():
+                        dq_list[player_id][1] += 1
+                    else:
+                        dq_list[player_id] = [player_data_loser[index], 1]
             else:
                 # not a dq, record both players as participants
-                participants.add(player_data_0)
-                participants.add(player_data_1)
+                for participant in player_data_0:
+                    participants.add(participant)
+                for participant in player_data_1:
+                    participants.add(participant)
         except Exception as e:
             print(set_data)
             print(e)
@@ -1132,18 +991,3 @@ def read_regions():
 
 scored_players, scored_tags = read_players()
 region_mults = read_regions()
-
-if __name__ == '__main__':
-    event_slug = input('input event url: ')
-
-    is_invitational = input('is this an invitational? (y/n) ')
-    is_invitational = is_invitational.lower() == 'y' or is_invitational.lower() == 'yes'
-
-    tournament = Tournament(event_slug, is_invitational)
-
-    result = tournament.calculate_tier()
-    result.write_result()
-
-    print()
-    print('Maximum potential total: {}'.format(
-        int(result.max_potential_score())))
