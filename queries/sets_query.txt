@@ -1,0 +1,32 @@
+query getSets($eventSlug: String!, $pageNum: Int!, $perPage: Int!, $phases: [ID]!) {
+  event(slug: $eventSlug) {
+    sets(page: $pageNum, perPage: $perPage, filters:{ state: [3], phaseIds: $phases}) {
+      pageInfo {
+        page
+        totalPages
+      }
+      nodes {
+        wPlacement
+        winnerId
+        slots {
+          entrant {
+            id
+            participants {
+              player {
+                gamerTag
+                id
+              }
+            }
+          }
+          standing {
+            stats {
+              score {
+                value
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

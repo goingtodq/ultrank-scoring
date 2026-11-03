@@ -1,0 +1,45 @@
+query generalQuery($eventId: ID!) {
+  event(id: $eventId) {
+    name
+    slug
+    type
+    state
+    startAt
+    updatedAt
+    isOnline
+    tournament {
+      name
+      startAt
+      slug
+      lat
+      lng
+      owner {
+        discriminator
+      }
+    }
+    phases {
+      id
+      name
+      state
+      isExhibition
+    }
+    entrants(
+        query: {
+            page: 1,
+            perPage: 15
+        }
+    ){
+        pageInfo {
+            totalPages
+        }
+        nodes {
+            participants {
+                player {
+                    gamerTag
+                    id
+                }
+            }
+        }
+    }
+  }
+}

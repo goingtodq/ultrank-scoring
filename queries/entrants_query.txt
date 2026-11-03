@@ -1,0 +1,22 @@
+query getEntrants($eventSlug: String!, $pageNum: Int!, $perPage: Int!) {
+    event(slug: $eventSlug) {
+        entrants(
+            query: {
+                page: $pageNum,
+                perPage: $perPage
+            }
+        ){
+            pageInfo {
+                totalPages
+            }
+            nodes {
+                participants {
+                    player {
+                        gamerTag
+                        id
+                    }
+                }
+            }
+        }
+    }
+}

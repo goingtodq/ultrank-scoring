@@ -1,0 +1,6 @@
+query getProgress($eventSlug: String!, $phases: [ID]!) {
+    event(slug: $eventSlug) {
+        totalSets: sets(page: 1, perPage: 1, filters: { phaseIds: $phases }) { pageInfo { total }}
+        completedSets: sets(page: 1, perPage: 1, filters: { phaseIds: $phases, state: [3] }) { pageInfo { total }}
+    }
+}
