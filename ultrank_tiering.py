@@ -13,7 +13,6 @@ from startgg_toolkit import send_request, isolate_slug
 from sheets_io import fetch_cached_addresses
 from geopy.geocoders import Nominatim
 import csv
-import sys
 import datetime
 import time
 
@@ -461,25 +460,23 @@ class Tournament:
         if event_progressed:
             self.phases = collect_phases(self.general_data['event']['phases'])
 
-            self.dq_list, self.participants = get_dqs(
+            self.dq_list, self.participants, entrants = get_dqs(
                 self.event_slug, phase_ids=[phase['id'] for phase in self.phases])
 
             self.total_dqs = 0
-
+            self.total_entrants = len(entrants)
             participant_ids = [part.id_ for part in self.participants]
-
             for player_id, _ in self.dq_list.items():
                 if player_id not in participant_ids:
                     self.total_dqs += 1
 
-            self.total_entrants = len(self.participants) + self.total_dqs
-
         else:
-            self.participants = get_entrants(self.event_slug, self.general_data['event']['entrants'], self.event_type)
+            self.participants, entrants = get_entrants(
+                self.event_slug, self.general_data['event']['entrants'], self.event_type)
 
+            self.total_entrants = len(entrants)
             self.dq_list = {}
             self.total_dqs = -1
-            self.total_entrants = len(self.participants)
             self.phases = []
 
         # Comment out if subtracting generic entrant dqs
@@ -783,6 +780,7 @@ def collect_phases(phases):
 def get_entrants(event_slug, base_entrants, event_type):
     page = 1
     participants = set()
+    entrants = set()
 
     per_page=480
     if event_type != 1:
@@ -807,9 +805,9 @@ def get_entrants(event_slug, base_entrants, event_type):
 
         for entrant in current['nodes']:
             try:
+                entrants.add(entrant['id'])
                 for participant in entrant['participants']:
                     player_data = Entrant(participant['player']['id'], participant['player']['gamerTag'])
-
                     participants.add(player_data)
             except Exception as e:
                 print(e)
@@ -821,13 +819,14 @@ def get_entrants(event_slug, base_entrants, event_type):
             break
         page += 1
 
-    return participants
+    return participants, entrants
 
 
 def get_dqs(event_slug, phase_ids=None):
     """Retrieves DQs of an event."""
 
     dq_list = {}
+    entrants = set() # separately track entrant IDs for entrant count computation
     participants = set()
 
     for set_data in get_sets_in_phases(event_slug, phase_ids):
@@ -840,6 +839,10 @@ def get_dqs(event_slug, phase_ids=None):
             continue
 
         try:
+            # record both players as entrants regardless of DQs
+            entrants.add(set_data['slots'][0]['entrant']['id'])
+            entrants.add(set_data['slots'][1]['entrant']['id'])
+
             loser = 1 if set_data['winnerId'] == set_data['slots'][0]['entrant']['id'] else 0
             player_data_0 = []
             player_data_1 = []
@@ -882,7 +885,7 @@ def get_dqs(event_slug, phase_ids=None):
             print(set_data)
             print(e)
 
-    return dq_list, participants
+    return dq_list, participants, entrants
 
 
 def read_players():

@@ -8,7 +8,7 @@ from ultrank_bulk import bulk_score, write_results
 from ultrank_tiering import Addresses
 from sheets_io import fetch_updated_at, write_updated_at, write_cached_addresses, write_script_endtime
 
-ENTRANT_MIN = 50
+ENTRANT_MIN = 8
 
 class Tournament:
     def __init__(self, name, slug, start_at):

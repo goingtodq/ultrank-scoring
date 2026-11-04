@@ -33,6 +33,7 @@ query generalQuery($eventId: ID!) {
             totalPages
         }
         nodes {
+            id
             participants {
                 player {
                     gamerTag
