@@ -734,13 +734,20 @@ def get_sets_in_phases(event_slug, phase_ids):
     """Collects all the sets in a group of phases."""
 
     page = 1
+    per_page = 48
 
     sets = []
 
     while True:
         query, variables = sets_query(
-            event_slug, page_num=page, phases=phase_ids)
+            event_slug, page_num=page, per_page=per_page, phases=phase_ids)
         resp = send_request(query, variables)
+
+        # TODO: awkwardly copied from entrants_query handling, might need more work
+        if 'errors' in resp and resp['errors'][0]['message'].find("query complexity is too high") != -1:
+            per_page /= 2
+            page = page * 2 - 1
+            continue
 
         try:
             sets.extend(resp['data']['event']['sets']['nodes'])
