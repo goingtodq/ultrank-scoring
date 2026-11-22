@@ -1,10 +1,12 @@
 import os
 import json
 import gspread
+import itertools
 from datetime import datetime, timedelta, timezone
 from google.oauth2.service_account import Credentials
 from zoneinfo import ZoneInfo
 from enum import IntEnum
+from event_regex_match import regex_match
 
 
 client = None
@@ -12,10 +14,13 @@ TTS_SHEET = "https://docs.google.com/spreadsheets/d/1aQEUAPqzF49OPMNNyPlelH5mRKt
 
 NOMINATIM_SHEET = "nominatim-cache"
 EVENTS_SHEET = "all-events"
+RANKED_SERIES_SHEET = "ranked-series"
+UNRANKED_SERIES_SHEET = "unranked-series"
+ONLINE_SERIES_SHEET = "online-series"
 
 class EventsIndices(IntEnum):
     DATE = 0
-    EVENT = 1
+    EVENT_DATE = 1
     TOURNAMENT = 2
     ACTIVITY_STATE = 3
     OVERRIDE_STATE = 4
@@ -23,13 +28,15 @@ class EventsIndices(IntEnum):
     CLASSIFICATION = 7
     OVERRIDE_DATE = 8
     NICKNAME = 9
+    EVENT = 10
     TYPE = 11
     ID = 13
     SLUG = 14
-    SCORE = 16
-    ALT_SCORE = 17
-    OVERRIDE_SCORE = 18
-    ENTRANTS = 19
+    SCORE = 15
+    ALT_SCORE = 16
+    OVERRIDE_SCORE = 17
+    ENTRANTS = 18
+    CLASSIFICATION_GUESS = 21
     JUSTIFICATION = 22
     NOTE = 23
 
@@ -127,8 +134,10 @@ def write_events(data):
     main_sheet = client.open_by_url(TTS_SHEET)
     events_sheet = main_sheet.worksheet(EVENTS_SHEET)
 
-    events = events_sheet.get("A3:X")
+    events = events_sheet.get("A3:W")
     events_dict = create_events_dict(events, data)
+
+    event_regex = fetch_event_regex()
 
     formatted_events = []
     for id, event in events_dict.items():
@@ -146,6 +155,15 @@ def write_events(data):
 
         formatted_events[-1][EventsIndices.TOURNAMENT] = format_event_link(formatted_events[-1][EventsIndices.TOURNAMENT], formatted_events[-1][EventsIndices.SLUG])
         formatted_events[-1][EventsIndices.CLASSIFICATION] = format_classification(formatted_events[-1][EventsIndices.CLASSIFICATION])
+
+        # update based on any newly added regex
+        if formatted_events[-1][EventsIndices.CLASSIFICATION_GUESS] not in ["blacklisted", "not_singles", "online"]:
+            rv = regex_match(formatted_events[-1][EventsIndices.EVENT], 
+                             formatted_events[-1][EventsIndices.TOURNAMENT],
+                             *event_regex)
+            if rv is not None:
+                formatted_events[-1][EventsIndices.CLASSIFICATION_GUESS] = rv[0]
+                formatted_events[-1][EventsIndices.JUSTIFICATION] = rv[1]
 
     formatted_events.sort(key=lambda x: int(x[EventsIndices.SCORE]), reverse=True)
     formatted_events.sort(key=lambda x: x[EventsIndices.DATE], reverse=True)
@@ -165,8 +183,6 @@ def write_events(data):
             {'range': f'{events_sheet.title}!D3', 'values': [row[3:] for row in formatted_events]},
         ],
     })
-
-    #events_sheet.update("A3", formatted_events, value_input_option='USER_ENTERED')
 
 def fetch_updated_at():
     """
@@ -366,3 +382,16 @@ def write_script_endtime():
     main_sheet = client.open_by_url(TTS_SHEET)
     events_sheet = main_sheet.worksheet(EVENTS_SHEET)
     events_sheet.update_acell("A1", "Last update by script: " + datetime.now(ZoneInfo("UTC")).replace(tzinfo=None).isoformat(timespec="seconds"))
+
+def fetch_event_regex():
+    authorize()
+    main_sheet = client.open_by_url(TTS_SHEET)
+    ranked_series_sheet = main_sheet.worksheet(RANKED_SERIES_SHEET)
+    unranked_series_sheet = main_sheet.worksheet(UNRANKED_SERIES_SHEET)
+    online_series_sheet = main_sheet.worksheet(ONLINE_SERIES_SHEET)
+
+    ranked_series = list(itertools.chain.from_iterable(ranked_series_sheet.get("A2:A")))
+    unranked_series = list(itertools.chain.from_iterable(unranked_series_sheet.get("A2:A")))
+    online_series = list(itertools.chain.from_iterable(online_series_sheet.get("A2:A")))
+
+    return ranked_series, unranked_series, online_series

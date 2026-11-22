@@ -1,5 +1,6 @@
+from event_regex_match import regex_match
 from ultrank_tiering import Tournament, TournamentTieringResult
-from sheets_io import write_events
+from sheets_io import write_events, fetch_event_regex
 from datetime import datetime
 from Levenshtein import jaro_winkler
 from startgg_toolkit import send_request
@@ -18,12 +19,6 @@ class _Tournament:
 MINIMUM_JARO_SIMILARITY = 0.8
 
 # certain event names to skip string similarity check for
-skip_weekly_check = ['Smash Mouth', 'The Big Bang Hadoken edition', 'Gengar League', 'To The Top',
-    'IR Training: Special Edition', 'DAT BlastZone', 'Boss Stage', 'Bonus Stage', 'Smash on Titan',
-    'Xentric Gaming: Let\'s Brawl', 'CLUTCH23. Ultimate Mayhem', 'マエスマ\'', 'マエスマTOP', 'Champion Series',
-    'qualifier', 'lcq', 'Ultimate Gaiden', 'Xenosaga', 'Macrospacing Vancouver', 'Ultimate Challenger Series',
-    '月', 'monthly', 'seasonal', 'mensual', 'CLUTCH United Mayhem', '4o4 by Sh33rz: Smash Bowl',
-    'Undiscovered Turbo', 'BeeSmash BIG', 'Smash Pro League']
 organizer_blacklist = ['f014e14d', '6d94b652', 'fef75a6a', 'ebbf7fac', '4472fa92', '886decc2']
 
 def admin_query(tournament_slug, page=1, per_page=75):
@@ -150,67 +145,35 @@ def check_potential_weekly(tournamentSlug):
 def check_blacklist(discriminator):
     return discriminator in organizer_blacklist
 
-def validate_event(event: TournamentTieringResult):
-    """Rough check for ranking validity."""
-    used = False
-    skip_reason = None
-
-    # No online events are valid.
-    if event.is_online:
-        return [used, "Online Event"]
+def classify_event(event: TournamentTieringResult,
+                   ranked_series: list,
+                   unranked_series: list,
+                   online_series: list):
+    """Classifies an event with some string matching + an extra check for weeklies."""
+    category = "unknown"
+    reason = None
 
     if event.event_type != 1:
-        return [used, "Not a singles event"]
-
-    for skip in skip_weekly_check:
-        if skip.lower() in event.event.lower():
-            return [True, 'skip_weekly_check, matched: ' + skip.lower()]
+        return ["not_singles", "Not a singles event"]
 
     if check_blacklist(event.ownerDiscriminator):
-        skip_reason = 'Tournament Creator Blacklisted'
-    elif event.event.lower().find('weekly') != -1 or event.event.lower().find('weekly') != -1:
-        skip_reason = 'Probable Weekly (contains string "weekly")'
-    elif event.tournament.lower().find('weeklies') != -1 or event.event.lower().find('weeklies') != -1:
-        skip_reason = 'Probable Weekly (contains string "weeklies")'
-    elif event.tournament.lower().find('arcadian') != -1 or event.event.lower().find('arcadian') != -1:
-        skip_reason = 'Probable Arcadian (contains string "arcadian")'
-    elif event.event.lower().find('ladder') != -1:
-        skip_reason = 'Probable Side Event (contains string "ladder")'
-    elif event.event.lower().find('redemption') != -1:
-        skip_reason = 'Probable Side Event (contains string "redemption")'
-    elif event.event.lower().find('resurrection') != -1:
-        skip_reason = 'Probable Side Event (contains string "resurrection")'
-    elif event.event.lower().find('buster') != -1:
-        skip_reason = 'Probable Side Event (contains string "buster")'
-    elif event.event.lower().find('amateur') != -1:
-        skip_reason = 'Probable Side Event (contains string "amateur")'
-    elif event.event.lower().find('squad') != -1:
-        skip_reason = 'Probable Side Event (contains string "squad")'
-    elif event.event.lower().find('random') != -1:
-        skip_reason = 'Probable Side Event (contains string "random")'
-    elif event.event.lower().find('cpu') != -1:
-        skip_reason = 'Probable Side Event (contains string "cpu")'
-    elif event.event.lower().find('amiibo') != -1:
-        skip_reason = 'Probable Side Event (contains string "amiibo")'
-    elif event.event.lower().find('hdr') != -1:
-        skip_reason = 'Probable Side Event (contains string "hdr")'
-    elif event.event.lower().find('wait') != -1:
-        skip_reason = 'Probable Waitlist (contains string "wait")'
-    elif event.tournament.lower().find('monthly') != -1 or event.event.lower().find('monthly') != -1:
-        used = True
-    else:
-        print(event.tournamentSlug)
-        potential_weekly = check_potential_weekly(event.tournamentSlug)
+        return ["blacklisted", 'Tournament Creator Blacklisted']
 
-        if potential_weekly is not None:
-            days_since = str(
-                round(potential_weekly.time_since / (24 * 60 * 60)))
-            skip_reason = 'Probable Weekly [{:.5f}] (found tournament {} [{}] which precedes by {} days)'.format(potential_weekly.similarity, potential_weekly.name, potential_weekly.slug, days_since)
+    if event.is_online:
+        return ["online", "Online Event"]
 
-    if skip_reason == None:
-        used = True
+    match = regex_match(event.event, event.tournament, ranked_series, unranked_series, online_series)
+    if match is not None:
+        return match
 
-    return [used, skip_reason]
+    potential_weekly = check_potential_weekly(event.tournamentSlug)
+    if potential_weekly is not None:
+        days_since = str(
+            round(potential_weekly.time_since / (24 * 60 * 60)))
+        reason = 'Probable Weekly [{:.5f}] (found tournament {} [{}] which precedes by {} days)'.format(potential_weekly.similarity, potential_weekly.name, potential_weekly.slug, days_since)
+        category = "probable_weekly"
+
+    return [category, reason]
 
 def bulk_score(events):
     """Scores multiple ids (previously slug), and returns the resultant result."""
@@ -238,6 +201,7 @@ def bulk_score(events):
 def write_results(results):
     formatted_results = []
 
+    event_regex = fetch_event_regex()
     for result in results:
         formatted_result = []
         if isinstance(result, TournamentTieringResult):
@@ -256,13 +220,13 @@ def write_results(results):
                                 result.region.note, 
                                 result.event_id, 
                                 result.slug, 
-                                result.is_invitational, 
                                 result.score, 
                                 result.max_potential_score(), 
                                 "", 
                                 result.entrants,
+                                str(result.should_count_strict()),
                                 str(result.should_count())]
-            formatted_result += validate_event(result)
+            formatted_result += classify_event(result, *event_regex)
             formatted_result += [""]
 
             formatted_results.append(formatted_result)
